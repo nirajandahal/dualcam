@@ -19,14 +19,30 @@
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             color: #fff;
             user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
+
+        /* ── App container ── */
         .app {
+            position: relative;
             width: 100vw;
             height: 100vh;
             background: #11161f;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+        }
+
+        /* ── Desktop styles (≥600px) ── */
+        @media (min-width: 600px) {
+            .app {
+                width: 420px;
+                height: 780px;
+                border-radius: 32px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            }
         }
 
         /* ── Viewport ── */
@@ -466,6 +482,7 @@
             background: #3a7aff;
         }
 
+        /* ── Mobile fine‑tune ── */
         @media (max-width: 480px) {
             .controls {
                 padding: 6px 8px 10px;
