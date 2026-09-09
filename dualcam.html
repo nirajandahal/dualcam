@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pro Dual‑View Camera</title>
+    <style>
+        /* ── Reset & base ── */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0b0e14;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            user-select: none;
+            overflow: hidden;
+        }
+        .app {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 500px;
+            max-height: 900px;
+            background: #11161f;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+        }
+        @media (min-width: 600px) {
+            .app {
+                width: 420px;
+                height: 780px;
+            }
+        }
+
+        /* ── Viewport ── */
+        .viewport {
+            flex: 1;
+            position: relative;
+            background: #0a0d14;
+            overflow: hidden;
+        }
+        #portraitCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+            background: #0a0d14;
+        }
+        .landscape-inset {
+            position: absolute;
+            bottom: 18px;
+            right: 18px;
+            width: 120px;
+            height: 68px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            background: #000;
+        }
+        .landscape-inset:hover {
+            transform: scale(1.04);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        #landscapeCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+        }
+
+        /* ── Grid overlay (rule of thirds) ── */
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 5;
+        }
+        .grid-overlay.active {
+            opacity: 0.4;
+        }
+        .grid-overlay::before,
+        .grid-overlay::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.7);
+        }
+        .grid-overlay::before {
+            top: 33.33%;
+            bottom: 33.33%;
+            left: 0;
+            right: 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.4);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        .grid-overlay::after {
+            left: 33.33%;
+            right: 33.33%;
+            top: 0;
+            bottom: 0;
+            border-left: 1px solid rgba(255, 255, 255, 0.4);
+            border-right: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        /* ── Recording badge ── */
+        .rec-badge {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
+            padding: 6px 14px 6px 10px;
+            border-radius: 40px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            z-index: 10;
+        }
+        .rec-badge.active {
+            opacity: 1;
+        }
+        .rec-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff3b30;
+            animation: pulse-dot 1.2s ease-in-out infinite;
+        }
+        .rec-dot.paused {
+            animation: none;
+            background: #ff9f0a;
+        }
+        @keyframes pulse-dot {
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(0.6);
+                opacity: 0.4;
+            }
+        }
+        .rec-timer {
+            font-variant-numeric: tabular-nums;
+            min-width: 48px;
+            display: inline-block;
+            color: #fff;
+        }
+
+        /* ── Controls bar ── */
+        .controls {
+            padding: 14px 16px 18px;
+            background: rgba(17, 22, 31, 0.92);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        .controls .btn-group {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            border: none;
+            border-radius: 30px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.07);
+            color: #eee;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 44px;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+        .btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.14);
+            transform: scale(1.02);
+        }
+        .btn:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+        .btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .btn-photo {
+            background: #2b6df6;
+            color: #fff;
+        }
+        .btn-photo:hover:not(:disabled) {
+            background: #3a7aff;
+        }
+        .btn-record {
+            background: #ff3b30;
+            color: #fff;
+        }
+        .btn-record:hover:not(:disabled) {
+            background: #ff554a;
+        }
+        .btn-record.recording {
+            background: #ff9f0a;
+            animation: pulse-record 1.4s ease-in-out infinite;
+        }
+        @keyframes pulse-record {
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 159, 10, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(255, 159, 10, 0);
+            }
+        }
+        .btn-stop {
+            background: #ff453a;
+            color: #fff;
+        }
+        .btn-stop:hover:not(:disabled) {
+            background: #ff5e54;
+        }
+        .btn-icon {
+            font-size: 16px;
+            line-height: 1;
+        }
+        .btn-settings {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px 10px;
+            font-size: 18px;
+        }
+        .btn-settings:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        /* ── Status bar ── */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px 10px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.45);
+            gap: 8px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            min-height: 30px;
+        }
+        .status-bar .status-msg {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .status-bar .download-links {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .status-bar .download-links a {
+            color: #5a8aff;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: rgba(42, 109, 246, 0.15);
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .status-bar .download-links a:hover {
+            background: rgba(42, 109, 246, 0.28);
+        }
+
+        /* ── Settings panel ── */
+        .settings-panel {
+            position: absolute;
+            top: 0;
+            right: -100%;
+            width: 85%;
+            max-width: 320px;
+            height: 100%;
+            background: rgba(17, 22, 31, 0.96);
+            backdrop-filter: blur(16px);
+            border-left: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 24px 20px;
+            overflow-y: auto;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .settings-panel.open {
+            right: 0;
+        }
+        .settings-panel h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #eee;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .settings-panel h3 .close-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 6px;
+        }
+        .settings-panel h3 .close-btn:hover {
+            color: #fff;
+        }
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .setting-group label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .setting-group .row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .setting-group select,
+        .setting-group input[type="range"],
+        .setting-group input[type="color"],
+        .setting-group input[type="number"] {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #fff;
+            padding: 6px 10px;
+            font-size: 13px;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .setting-group select:focus,
+        .setting-group input:focus {
+            border-color: #2b6df6;
+        }
+        .setting-group input[type="range"] {
+            flex: 1;
+            accent-color: #2b6df6;
+            padding: 0;
+            height: 4px;
+        }
+        .setting-group input[type="color"] {
+            width: 40px;
+            height: 40px;
+            padding: 2px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .setting-group .value-label {
+            font-size: 13px;
+            color: #aaa;
+            min-width: 30px;
+            text-align: right;
+        }
+        .setting-group .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .toggle {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.25s;
+            flex-shrink: 0;
+        }
+        .toggle.active {
+            background: #2b6df6;
+        }
+        .toggle .knob {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.25s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .toggle.active .knob {
+            transform: translateX(18px);
+        }
+        .setting-group .hint {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.3);
+            margin-top: 2px;
+        }
+
+        /* ── Error overlay ── */
+        .error-msg {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(6px);
+            padding: 30px;
+            text-align: center;
+            z-index: 20;
+            color: #eee;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        .error-msg .emoji {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        .error-msg .sub {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            margin-top: 6px;
+        }
+        .error-msg .retry-btn {
+            margin-top: 20px;
+            background: #2b6df6;
+            border: none;
+            color: #fff;
+            padding: 10px 28px;
+            border-radius: 40px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .error-msg .retry-btn:hover {
+            background: #3a7aff;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            .controls {
+                padding: 10px 12px 14px;
+                gap: 6px;
+            }
+            .btn {
+                font-size: 12px;
+                padding: 6px 10px;
+                min-width: 36px;
+            }
+            .landscape-inset {
+                width: 90px;
+                height: 51px;
+                bottom: 12px;
+                right: 12px;
+                border-radius: 10px;
+            }
+            .rec-badge {
+                font-size: 11px;
+                padding: 4px 10px 4px 8px;
+                top: 12px;
+                left: 12px;
+            }
+            .settings-panel {
+                width: 100%;
+                max-width: 100%;
+                padding: 16px;
+            }
+            .status-bar {
+                padding: 0 12px 8px;
+                font-size: 10px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 2px;
+            }
+            .status-bar .download-links {
+                width: 100%;
+                justify-content: flex-start;
+            }
+        }
+
+        /* ── Scrollbar ── */
+        .settings-panel::-webkit-scrollbar {
+            width: 4px;
+        }
+        .settings-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        #sourceVideo {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app" id="app">
+        <!-- Viewport -->
+        <div class="viewport" id="viewport">
+            <canvas id="portraitCanvas"></canvas>
+            <div class="grid-overlay" id="gridOverlay"></div>
+
+            <div class="landscape-inset" id="landscapeInset" style="background:#000;">
+                <canvas id="landscapeCanvas"></canvas>
+                <div class="grid-overlay" id="gridOverlayLandscape"></div>
+            </div>
+
+            <div class="rec-badge" id="recBadge">
+                <span class="rec-dot" id="recDot"></span>
+                <span class="rec-timer" id="recTimer">00:00</span>
+            </div>
+
+            <div class="error-msg" id="errorOverlay" style="display:none;">
+                <div class="emoji">📷</div>
+                <div id="errorText">Camera not available</div>
+                <div class="sub" id="errorSub">Please allow camera access and refresh.</div>
+                <button class="retry-btn" id="retryBtn">Retry</button>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="btn-group">
+                <button class="btn btn-photo" id="photoBtn" title="Photo"><span class="btn-icon">📸</span></button>
+                <button class="btn btn-record" id="recordBtn" title="Record"><span class="btn-icon">●</span></button>
+                <button class="btn btn-stop" id="stopBtn" disabled title="Stop"><span class="btn-icon">⏹</span></button>
+                <button class="btn btn-settings" id="settingsToggle" title="Settings">⚙️</button>
+            </div>
+            <div class="btn-group">
+                <button class="btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
+            </div>
+        </div>
+
+        <!-- Status -->
+        <div class="status-bar">
+            <span class="status-msg" id="statusMsg">Ready</span>
+            <div class="download-links" id="downloadLinks"></div>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel" id="settingsPanel">
+            <h3>⚙️ Settings
+                <button class="close-btn" id="closeSettings">✕</button>
+            </h3>
+
+            <!-- Camera -->
+            <div class="setting-group">
+                <label>Camera</label>
+                <div class="row">
+                    <select id="resolutionSelect">
+                        <option value="1280x720">720p</option>
+                        <option value="1920x1080" selected>1080p</option>
+                        <option value="3840x2160">4K (2160p)</option>
+                    </select>
+                    <select id="cameraSelect">
+                        <option value="user">Front</option>
+                        <option value="environment">Rear</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Zoom -->
+            <div class="setting-group">
+                <label>Digital Zoom <span class="value-label" id="zoomLabel">1.0x</span></label>
+                <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" />
+            </div>
+
+            <!-- Grid -->
+            <div class="setting-group">
+                <div class="toggle-row">
+                    <span>Rule of Thirds</span>
+                    <div class="toggle" id="gridToggle"><div class="knob"></div></div>
+                </div>
+            </div>
+
+            <!-- Inset Background -->
+            <div class="setting-group">
+                <label>Inset Background</label>
+                <input type="color" id="bgColorPicker" value="#000000" />
+            </div>
+
+            <!-- Filters -->
+            <div class="setting-group">
+                <label>Live Filter</label>
+                <select id="filterSelect">
+                    <option value="none">None</option>
+                    <option value="grayscale">Grayscale</option>
+                    <option value="sepia">Sepia</option>
+                    <option value="invert">Invert</option>
+                </select>
+            </div>
+
+            <!-- Countdown -->
+            <div class="setting-group">
+                <label>Countdown (sec)</label>
+                <select id="countdownSelect">
+                    <option value="0">Off</option>
+                    <option value="3" selected>3</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                </select>
+            </div>
+
+            <!-- Segment -->
+            <div class="setting-group">
+                <label>Segment Recording (minutes, 0 = no split)</label>
+                <input type="number" id="segmentInput" value="0" min="0" max="60" step="1" />
+            </div>
+
+            <!-- Motion Detection -->
+            <div class="setting-group">
+                <div class="toggle-row">
+                    <span>Motion Detection</span>
+                    <div class="toggle" id="motionToggle"><div class="knob"></div></div>
+                </div>
+                <div class="row">
+                    <label>Sensitivity</label>
+                    <input type="range" id="motionSensitivity" min="1" max="50" value="20" />
+                    <span class="value-label" id="motionLabel">20</span>
+                </div>
+                <div class="row">
+                    <select id="motionAction">
+                        <option value="record">Auto‑Record</option>
+                        <option value="photo">Auto‑Photo</option>
+                    </select>
+                </div>
+                <div class="hint">Triggers when movement exceeds threshold.</div>
+            </div>
+
+            <!-- Voice Commands -->
+            <div class="setting-group">
+                <div class="toggle-row">
+                    <span>Voice Commands</span>
+                    <div class="toggle" id="voiceToggle"><div class="knob"></div></div>
+                </div>
+                <div class="hint">Say "record", "stop", "photo" (English).</div>
+            </div>
+        </div>
+
+        <video id="sourceVideo" autoplay playsinline muted></video>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // ─── DOM refs ──────────────────────────────────────────────
+            const video = document.getElementById('sourceVideo');
+            const portraitCanvas = document.getElementById('portraitCanvas');
+            const landscapeCanvas = document.getElementById('landscapeCanvas');
+            const pCtx = portraitCanvas.getContext('2d');
+            const lCtx = landscapeCanvas.getContext('2d');
+
+            const gridOverlay = document.getElementById('gridOverlay');
+            const gridOverlayLandscape = document.getElementById('gridOverlayLandscape');
+
+            const photoBtn = document.getElementById('photoBtn');
+            const recordBtn = document.getElementById('recordBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const settingsToggle = document.getElementById('settingsToggle');
+            const closeSettings = document.getElementById('closeSettings');
+            const settingsPanel = document.getElementById('settingsPanel');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+            const statusMsg = document.getElementById('statusMsg');
+            const downloadLinks = document.getElementById('downloadLinks');
+            const recBadge = document.getElementById('recBadge');
+            const recDot = document.getElementById('recDot');
+            const recTimer = document.getElementById('recTimer');
+
+            const errorOverlay = document.getElementById('errorOverlay');
+            const errorText = document.getElementById('errorText');
+            const errorSub = document.getElementById('errorSub');
+            const retryBtn = document.getElementById('retryBtn');
+
+            // Settings inputs
+            const resolutionSelect = document.getElementById('resolutionSelect');
+            const cameraSelect = document.getElementById('cameraSelect');
+            const zoomSlider = document.getElementById('zoomSlider');
+            const zoomLabel = document.getElementById('zoomLabel');
+            const gridToggle = document.getElementById('gridToggle');
+            const bgColorPicker = document.getElementById('bgColorPicker');
+            const filterSelect = document.getElementById('filterSelect');
+            const countdownSelect = document.getElementById('countdownSelect');
+            const segmentInput = document.getElementById('segmentInput');
+            const motionToggle = document.getElementById('motionToggle');
+            const motionSensitivity = document.getElementById('motionSensitivity');
+            const motionLabel = document.getElementById('motionLabel');
+            const motionAction = document.getElementById('motionAction');
+            const voiceToggle = document.getElementById('voiceToggle');
+
+            // ─── Constants ─────────────────────────────────────────────
+            const PORTRAIT_W = 540;
+            const PORTRAIT_H = 960;
+            const LANDSCAPE_W = 320;
+            const LANDSCAPE_H = 180;
+
+            // ─── State ──────────────────────────────────────────────────
+            let stream = null;
+            let isStreaming = false;
+            let isRecording = false;
+            let isPaused = false;
+            let recordingStartTime = 0;
+            let timerInterval = null;
+            let animationFrame = null;
+
+            // Recorders & chunks
+            let landscapeRecorder = null;
+            let portraitRecorder = null;
+            let landscapeChunks = [];
+            let portraitChunks = [];
+            let segmentCount = 0;
+            let segmentTimer = null;
+            let segmentDurationMs = 0; // from settings
+
+            // Files
+            let capturedFiles = [];
+
+            // Zoom
+            let currentZoom = 1.0;
+
+            // Filters
+            let currentFilter = 'none';
+
+            // Motion detection
+            let motionEnabled = false;
+            let motionSensitivityVal = 20;
+            let motionActionVal = 'record';
+            let prevFrameData = null;
+            let motionTriggered = false;
+
+            // Voice recognition
+            let voiceEnabled = false;
+            let recognition = null;
+
+            // Countdown
+            let countdownActive = false;
+            let countdownValue = 0;
+            let countdownInterval = null;
+
+            // ─── Canvas setup ──────────────────────────────────────────
+            function setupCanvases() {
+                portraitCanvas.width = PORTRAIT_W;
+                portraitCanvas.height = PORTRAIT_H;
+                landscapeCanvas.width = LANDSCAPE_W;
+                landscapeCanvas.height = LANDSCAPE_H;
+            }
+            setupCanvases();
+
+            // ─── Camera start / restart ──────────────────────────────
+            async function startCamera() {
+                try {
+                    const resolution = resolutionSelect.value; // '1280x720', etc.
+                    const [w, h] = resolution.split('x').map(Number);
+                    const facing = cameraSelect.value;
+
+                    const constraints = {
+                        video: {
+                            facingMode: facing,
+                            width: { ideal: w },
+                            height: { ideal: h },
+                        },
+                        audio: true
+                    };
+
+                    if (stream) {
+                        stream.getTracks().forEach(t => t.stop());
+                    }
+
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    video.srcObject = stream;
+                    await video.play();
+
+                    isStreaming = true;
+                    errorOverlay.style.display = 'none';
+                    photoBtn.disabled = false;
+                    recordBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    statusMsg.textContent = 'Camera ready';
+
+                    // Restart render loop
+                    if (animationFrame) cancelAnimationFrame(animationFrame);
+                    renderLoop();
+
+                    // Reset motion detection
+                    prevFrameData = null;
+                    motionTriggered = false;
+
+                    return true;
+                } catch (err) {
+                    console.error('Camera error:', err);
+                    showError('Camera access denied', 'Please allow camera and microphone access.');
+                    photoBtn.disabled = true;
+                    recordBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    return false;
+                }
+            }
+
+            // ─── Render loop ──────────────────────────────────────────
+            function renderLoop() {
+                if (!isStreaming) {
+                    animationFrame = requestAnimationFrame(renderLoop);
+                    return;
+                }
+
+                const vw = video.videoWidth || 1280;
+                const vh = video.videoHeight || 720;
+                if (vw === 0 || vh === 0) {
+                    animationFrame = requestAnimationFrame(renderLoop);
+                    return;
+                }
+
+                // ── Zoom ──
+                const zoom = currentZoom;
+                const cropW = vw / zoom;
+                const cropH = vh / zoom;
+                const cropX = (vw - cropW) / 2;
+                const cropY = (vh - cropH) / 2;
+
+                // ── Portrait: crop center to 9:16 ──
+                const portraitCropW = cropH * (9 / 16);
+                const portraitCropX = cropX + (cropW - portraitCropW) / 2;
+                const portraitCropY = cropY;
+                const portraitCropH = cropH;
+
+                pCtx.clearRect(0, 0, PORTRAIT_W, PORTRAIT_H);
+                pCtx.drawImage(
+                    video,
+                    portraitCropX, portraitCropY, portraitCropW, portraitCropH,
+                    0, 0, PORTRAIT_W, PORTRAIT_H
+                );
+                applyFilter(pCtx, PORTRAIT_W, PORTRAIT_H);
+
+                // ── Landscape: full zoomed area scaled to fit ──
+                lCtx.clearRect(0, 0, LANDSCAPE_W, LANDSCAPE_H);
+                const scaleX = LANDSCAPE_W / cropW;
+                const scaleY = LANDSCAPE_H / cropH;
+                const scale = Math.min(scaleX, scaleY);
+                const dw = cropW * scale;
+                const dh = cropH * scale;
+                const dx = (LANDSCAPE_W - dw) / 2;
+                const dy = (LANDSCAPE_H - dh) / 2;
+                lCtx.drawImage(
+                    video,
+                    cropX, cropY, cropW, cropH,
+                    dx, dy, dw, dh
+                );
+                applyFilter(lCtx, LANDSCAPE_W, LANDSCAPE_H);
+
+                // ── Motion detection ──
+                if (motionEnabled && !isRecording && !countdownActive) {
+                    detectMotion(pCtx);
+                }
+
+                animationFrame = requestAnimationFrame(renderLoop);
+            }
+
+            // ─── Filters ──────────────────────────────────────────────
+            function applyFilter(ctx, w, h) {
+                const filter = currentFilter;
+                if (filter === 'none') return;
+                const imageData = ctx.getImageData(0, 0, w, h);
+                const data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    let r = data[i];
+                    let g = data[i + 1];
+                    let b = data[i + 2];
+                    if (filter === 'grayscale') {
+                        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                        data[i] = data[i + 1] = data[i + 2] = gray;
+                    } else if (filter === 'sepia') {
+                        const tr = 0.393 * r + 0.769 * g + 0.189 * b;
+                        const tg = 0.349 * r + 0.686 * g + 0.168 * b;
+                        const tb = 0.272 * r + 0.534 * g + 0.131 * b;
+                        data[i] = Math.min(tr, 255);
+                        data[i + 1] = Math.min(tg, 255);
+                        data[i + 2] = Math.min(tb, 255);
+                    } else if (filter === 'invert') {
+                        data[i] = 255 - r;
+                        data[i + 1] = 255 - g;
+                        data[i + 2] = 255 - b;
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+            }
+
+            // ─── Motion detection ─────────────────────────────────────
+            function detectMotion(ctx) {
+                // Capture a small thumbnail for comparison
+                const w = 80,
+                    h = 60;
+                const imageData = ctx.getImageData(0, 0, w, h);
+                // We'll compute a simple sum of absolute differences from previous frame
+                if (!prevFrameData) {
+                    prevFrameData = imageData.data.slice();
+                    return;
+                }
+                const data = imageData.data;
+                let diff = 0;
+                const len = data.length;
+                for (let i = 0; i < len; i += 4) {
+                    diff += Math.abs(data[i] - prevFrameData[i]);
+                    diff += Math.abs(data[i + 1] - prevFrameData[i + 1]);
+                    diff += Math.abs(data[i + 2] - prevFrameData[i + 2]);
+                }
+                // Normalize
+                const avgDiff = diff / (w * h * 3);
+                // Store current frame
+                prevFrameData = data.slice();
+
+                // Threshold
+                const threshold = motionSensitivityVal * 0.5; // tune
+                if (avgDiff > threshold && !motionTriggered) {
+                    motionTriggered = true;
+                    statusMsg.textContent = '🔔 Motion detected!';
+                    // Trigger action
+                    if (motionActionVal === 'record') {
+                        if (!isRecording && !countdownActive) {
+                            startRecordingWithCountdown();
+                        }
+                    } else if (motionActionVal === 'photo') {
+                        capturePhoto();
+                    }
+                    // Reset after a short cooldown
+                    setTimeout(() => { motionTriggered = false; }, 2000);
+                }
+                if (avgDiff < threshold * 0.5) {
+                    motionTriggered = false;
+                }
+            }
+
+            // ─── Photo capture ────────────────────────────────────────
+            function capturePhoto() {
+                if (!isStreaming) {
+                    statusMsg.textContent = '⚠️ Camera not ready';
+                    return;
+                }
+                // Apply filter to canvas if any (already applied in render)
+                const pBlob = canvasToBlob(portraitCanvas);
+                const lBlob = canvasToBlob(landscapeCanvas);
+                const ts = timestamp();
+                const files = [];
+                if (pBlob) {
+                    files.push({ name: `portrait_${ts}.png`, blob: pBlob, type: 'image/png', label: '📱 Portrait' });
+                }
+                if (lBlob) {
+                    files.push({ name: `landscape_${ts}.png`, blob: lBlob, type: 'image/png', label: '🖥️ Landscape' });
+                }
+                if (files.length === 0) return;
+                addFiles(files);
+                files.forEach(f => downloadBlob(f.blob, f.name));
+                statusMsg.textContent = `📸 Photo saved (${files.length})`;
+            }
+
+            function canvasToBlob(canvas) {
+                try {
+                    return new Promise((resolve) => {
+                        canvas.toBlob((blob) => resolve(blob), 'image/png');
+                    });
+                } catch (_) { return null; }
+            }
+
+            // ─── Recording with countdown ─────────────────────────────
+            function startRecordingWithCountdown() {
+                const countdown = parseInt(countdownSelect.value) || 0;
+                if (countdown > 0) {
+                    countdownActive = true;
+                    let counter = countdown;
+                    statusMsg.textContent = `⏳ Recording in ${counter}...`;
+                    photoBtn.disabled = true;
+                    recordBtn.disabled = true;
+                    countdownInterval = setInterval(() => {
+                        counter--;
+                        if (counter <= 0) {
+                            clearInterval(countdownInterval);
+                            countdownActive = false;
+                            statusMsg.textContent = '🎬 Recording...';
+                            photoBtn.disabled = false;
+                            recordBtn.disabled = true;
+                            startRecordingInternal();
+                        } else {
+                            statusMsg.textContent = `⏳ Recording in ${counter}...`;
+                        }
+                    }, 1000);
+                } else {
+                    startRecordingInternal();
+                }
+            }
+
+            function startRecordingInternal() {
+                if (!isStreaming || isRecording) return;
+                // Reset chunks
+                landscapeChunks = [];
+                portraitChunks = [];
+                segmentCount = 0;
+                // Stop any previous segment timer
+                if (segmentTimer) clearInterval(segmentTimer);
+
+                // ── Landscape recorder ──
+                try {
+                    landscapeRecorder = new MediaRecorder(stream, {
+                        mimeType: 'video/webm;codecs=vp9,opus',
+                    });
+                    landscapeRecorder.ondataavailable = (e) => {
+                        if (e.data && e.data.size > 0) landscapeChunks.push(e.data);
+                    };
+                    landscapeRecorder.onstop = () => {
+                        onRecorderStop('landscape');
+                    };
+                    landscapeRecorder.start(1000);
+                } catch (err) {
+                    console.warn('Landscape fallback:', err);
+                    try {
+                        const lStream = landscapeCanvas.captureStream(30);
+                        landscapeRecorder = new MediaRecorder(lStream, {
+                            mimeType: 'video/webm;codecs=vp9',
+                        });
+                        landscapeRecorder.ondataavailable = (e) => {
+                            if (e.data && e.data.size > 0) landscapeChunks.push(e.data);
+                        };
+                        landscapeRecorder.onstop = () => {
+                            onRecorderStop('landscape');
+                        };
+                        landscapeRecorder.start(1000);
+                    } catch (err2) {
+                        console.error('Landscape fallback failed:', err2);
+                        statusMsg.textContent = '❌ Failed to start landscape';
+                        return;
+                    }
+                }
+
+                // ── Portrait recorder ──
+                try {
+                    const pStream = portraitCanvas.captureStream(30);
+                    const audioTrack = stream.getAudioTracks()[0];
+                    if (audioTrack) {
+                        try {
+                            const cloned = audioTrack.clone();
+                            pStream.addTrack(cloned);
+                        } catch (_) {}
+                    }
+                    portraitRecorder = new MediaRecorder(pStream, {
+                        mimeType: 'video/webm;codecs=vp9,opus',
+                    });
+                    portraitRecorder.ondataavailable = (e) => {
+                        if (e.data && e.data.size > 0) portraitChunks.push(e.data);
+                    };
+                    portraitRecorder.onstop = () => {
+                        onRecorderStop('portrait');
+                    };
+                    portraitRecorder.start(1000);
+                } catch (err) {
+                    console.error('Portrait recorder failed:', err);
+                    try { landscapeRecorder.stop(); } catch (_) {}
+                    statusMsg.textContent = '❌ Failed to start portrait';
+                    return;
+                }
+
+                isRecording = true;
+                isPaused = false;
+                recordingStartTime = Date.now();
+                recordBtn.classList.add('recording');
+                recordBtn.textContent = '●';
+                stopBtn.disabled = false;
+                photoBtn.disabled = true;
+                recBadge.classList.add('active');
+                recDot.className = 'rec-dot';
+                recTimer.textContent = '00:00';
+                statusMsg.textContent = '🔴 Recording...';
+
+                // Timer
+                if (timerInterval) clearInterval(timerInterval);
+                timerInterval = setInterval(updateTimer, 200);
+
+                // Segment timer
+                const segMin = parseInt(segmentInput.value) || 0;
+                if (segMin > 0) {
+                    segmentDurationMs = segMin * 60 * 1000;
+                    segmentTimer = setInterval(() => {
+                        if (!isRecording || isPaused) return;
+                        // Stop and restart recorders to create segment
+                        splitSegment();
+                    }, segmentDurationMs);
+                } else {
+                    segmentDurationMs = 0;
+                }
+            }
+
+            function splitSegment() {
+                if (!isRecording || isPaused) return;
+                // Stop current recorders, they will finalize chunks and onstop will save segment.
+                // But we need to restart them immediately after.
+                // We'll use a flag to avoid double finalization.
+                if (landscapeRecorder && landscapeRecorder.state === 'recording') {
+                    landscapeRecorder.stop();
+                }
+                if (portraitRecorder && portraitRecorder.state === 'recording') {
+                    portraitRecorder.stop();
+                }
+                // Wait for onstop to fire, then restart
+                // We'll use a promise to detect both stopped.
+                const checkStopped = () => {
+                    if ((!landscapeRecorder || landscapeRecorder.state === 'inactive') &&
+                        (!portraitRecorder || portraitRecorder.state === 'inactive')) {
+                        // Restart recording for new segment
+                        // But we must keep isRecording true.
+                        // We'll call startRecordingInternal again? But we need to preserve the timer.
+                        // Better: we already have a mechanism: we'll just restart recorders.
+                        // However, we need to avoid re-initializing everything.
+                        // We'll re-use the existing recoders but they are gone.
+                        // So we start new ones.
+                        startRecordingInternal(); // This resets chunks and starts new recorders.
+                        // But we need to keep the segment count.
+                        segmentCount++;
+                    } else {
+                        setTimeout(checkStopped, 200);
+                    }
+                };
+                setTimeout(checkStopped, 300);
+            }
+
+            function onRecorderStop(type) {
+                // When both recorders are stopped, finalize segment
+                const bothStopped =
+                    (!landscapeRecorder || landscapeRecorder.state === 'inactive') &&
+                    (!portraitRecorder || portraitRecorder.state === 'inactive');
+                if (!bothStopped) return;
+
+                // Save current segment
+                const ts = timestamp();
+                const files = [];
+                if (landscapeChunks.length > 0) {
+                    const blob = new Blob(landscapeChunks, { type: 'video/webm' });
+                    if (blob.size > 0) {
+                        const seg = segmentCount > 0 ? `_seg${segmentCount}` : '';
+                        files.push({
+                            name: `landscape${seg}_${ts}.webm`,
+                            blob: blob,
+                            type: 'video/webm',
+                            label: `🖥️ Land${seg}`
+                        });
+                    }
+                }
+                if (portraitChunks.length > 0) {
+                    const blob = new Blob(portraitChunks, { type: 'video/webm' });
+                    if (blob.size > 0) {
+                        const seg = segmentCount > 0 ? `_seg${segmentCount}` : '';
+                        files.push({
+                            name: `portrait${seg}_${ts}.webm`,
+                            blob: blob,
+                            type: 'video/webm',
+                            label: `📱 Port${seg}`
+                        });
+                    }
+                }
+                if (files.length > 0) {
+                    addFiles(files);
+                    files.forEach(f => downloadBlob(f.blob, f.name));
+                    statusMsg.textContent = `📼 Segment ${segmentCount+1} saved`;
+                }
+                // Clear chunks for next segment
+                landscapeChunks = [];
+                portraitChunks = [];
+                // If segment timer is active, we'll restart soon via splitSegment.
+            }
+
+            function pauseRecording() {
+                if (!isRecording) return;
+                if (isPaused) {
+                    // Resume
+                    if (landscapeRecorder && landscapeRecorder.state === 'paused') landscapeRecorder.resume();
+                    if (portraitRecorder && portraitRecorder.state === 'paused') portraitRecorder.resume();
+                    isPaused = false;
+                    recDot.className = 'rec-dot';
+                    statusMsg.textContent = '🔴 Recording...';
+                    recordBtn.textContent = '●';
+                } else {
+                    if (landscapeRecorder && landscapeRecorder.state === 'recording') landscapeRecorder.pause();
+                    if (portraitRecorder && portraitRecorder.state === 'recording') portraitRecorder.pause();
+                    isPaused = true;
+                    recDot.className = 'rec-dot paused';
+                    statusMsg.textContent = '⏸️ Paused';
+                    recordBtn.textContent = '⏸';
+                }
+            }
+
+            function stopRecording() {
+                if (!isRecording) return;
+                isRecording = false;
+                isPaused = false;
+                stopBtn.disabled = true;
+                recordBtn.disabled = true;
+                photoBtn.disabled = false;
+                recordBtn.classList.remove('recording');
+                recordBtn.textContent = '●';
+                recBadge.classList.remove('active');
+                if (timerInterval) clearInterval(timerInterval);
+                timerInterval = null;
+                if (segmentTimer) clearInterval(segmentTimer);
+                segmentTimer = null;
+
+                // Stop recorders
+                try { landscapeRecorder.stop(); } catch (_) {}
+                try { portraitRecorder.stop(); } catch (_) {}
+
+                // Final save will be triggered by onstop.
+                statusMsg.textContent = '⏹️ Stopping...';
+                // Enable record after finalization? We'll do it after onstop.
+                // But we need to reset state.
+                // We'll let onRecorderStop handle final save and re-enable.
+            }
+
+            function updateTimer() {
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                recTimer.textContent = `${m}:${s}`;
+            }
+
+            // ─── File management ──────────────────────────────────────
+            function addFiles(files) {
+                files.forEach(f => {
+                    const exists = capturedFiles.some(c => c.name === f.name);
+                    if (!exists) capturedFiles.push(f);
+                });
+                renderDownloadLinks();
+            }
+
+            function renderDownloadLinks() {
+                downloadLinks.innerHTML = '';
+                if (capturedFiles.length === 0) {
+                    const span = document.createElement('span');
+                    span.className = 'link-label';
+                    span.textContent = 'No files';
+                    downloadLinks.appendChild(span);
+                    return;
+                }
+                capturedFiles.forEach((f, idx) => {
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = `${f.label} (${formatSize(f.blob.size)})`;
+                    a.title = f.name;
+                    a.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        downloadBlob(f.blob, f.name);
+                    });
+                    downloadLinks.appendChild(a);
+                    if (idx < capturedFiles.length - 1) {
+                        const sep = document.createElement('span');
+                        sep.className = 'link-label';
+                        sep.textContent = '·';
+                        downloadLinks.appendChild(sep);
+                    }
+                });
+            }
+
+            function downloadBlob(blob, filename) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 3000);
+            }
+
+            function formatSize(bytes) {
+                if (bytes < 1024) return bytes + 'B';
+                if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'KB';
+                return (bytes / 1048576).toFixed(1) + 'MB';
+            }
+
+            function timestamp() {
+                const d = new Date();
+                const pad = n => String(n).padStart(2, '0');
+                return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+            }
+
+            // ─── Helpers ──────────────────────────────────────────────
+            function showError(title, sub) {
+                errorOverlay.style.display = 'flex';
+                errorText.textContent = title;
+                errorSub.textContent = sub || 'Please allow camera access and refresh.';
+            }
+
+            // ─── Settings UI interactions ─────────────────────────────
+            // Zoom
+            zoomSlider.addEventListener('input', () => {
+                currentZoom = parseFloat(zoomSlider.value);
+                zoomLabel.textContent = currentZoom.toFixed(1) + 'x';
+            });
+
+            // Grid toggle
+            gridToggle.addEventListener('click', () => {
+                gridToggle.classList.toggle('active');
+                const active = gridToggle.classList.contains('active');
+                gridOverlay.classList.toggle('active', active);
+                gridOverlayLandscape.classList.toggle('active', active);
+            });
+
+            // Inset background
+            bgColorPicker.addEventListener('input', () => {
+                document.getElementById('landscapeInset').style.background = bgColorPicker.value;
+            });
+
+            // Filter
+            filterSelect.addEventListener('change', () => {
+                currentFilter = filterSelect.value;
+            });
+
+            // Camera restart on resolution/camera change
+            async function restartCamera() {
+                if (isRecording) {
+                    stopRecording();
+                    // Wait for stop to complete?
+                }
+                await startCamera();
+            }
+            resolutionSelect.addEventListener('change', restartCamera);
+            cameraSelect.addEventListener('change', restartCamera);
+
+            // Settings panel toggle
+            settingsToggle.addEventListener('click', () => {
+                settingsPanel.classList.toggle('open');
+            });
+            closeSettings.addEventListener('click', () => {
+                settingsPanel.classList.remove('open');
+            });
+
+            // Fullscreen
+            fullscreenBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                } else {
+                    document.exitFullscreen().catch(() => {});
+                }
+            });
+
+            // Motion toggle
+            motionToggle.addEventListener('click', () => {
+                motionToggle.classList.toggle('active');
+                motionEnabled = motionToggle.classList.contains('active');
+                if (motionEnabled) {
+                    prevFrameData = null;
+                    motionTriggered = false;
+                }
+            });
+            motionSensitivity.addEventListener('input', () => {
+                motionSensitivityVal = parseInt(motionSensitivity.value);
+                motionLabel.textContent = motionSensitivityVal;
+            });
+            motionAction.addEventListener('change', () => {
+                motionActionVal = motionAction.value;
+            });
+
+            // Voice commands
+            voiceToggle.addEventListener('click', () => {
+                voiceToggle.classList.toggle('active');
+                voiceEnabled = voiceToggle.classList.contains('active');
+                if (voiceEnabled) {
+                    initVoiceRecognition();
+                } else {
+                    if (recognition) {
+                        recognition.abort();
+                        recognition = null;
+                    }
+                }
+            });
+
+            function initVoiceRecognition() {
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                    statusMsg.textContent = '⚠️ Voice not supported';
+                    voiceToggle.classList.remove('active');
+                    voiceEnabled = false;
+                    return;
+                }
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SR();
+                recognition.lang = 'en-US';
+                recognition.interimResults = false;
+                recognition.continuous = true;
+                recognition.onresult = (event) => {
+                    const last = event.results.length - 1;
+                    const transcript = event.results[last][0].transcript.toLowerCase().trim();
+                    console.log('Voice:', transcript);
+                    if (transcript.includes('record') && !isRecording && !countdownActive) {
+                        startRecordingWithCountdown();
+                    } else if (transcript.includes('stop') && isRecording) {
+                        stopRecording();
+                    } else if (transcript.includes('photo') && !isRecording) {
+                        capturePhoto();
+                    }
+                };
+                recognition.onerror = () => {
+                    // restart if enabled
+                    if (voiceEnabled) {
+                        try { recognition.start(); } catch (_) {}
+                    }
+                };
+                recognition.start();
+            }
+
+            // Pause/Resume via clicking record button while recording
+            recordBtn.addEventListener('click', () => {
+                if (isRecording) {
+                    pauseRecording();
+                } else {
+                    startRecordingWithCountdown();
+                }
+            });
+
+            // Stop button
+            stopBtn.addEventListener('click', stopRecording);
+
+            // Photo button
+            photoBtn.addEventListener('click', capturePhoto);
+
+            // Retry
+            retryBtn.addEventListener('click', async () => {
+                errorOverlay.style.display = 'none';
+                statusMsg.textContent = 'Starting camera…';
+                await startCamera();
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.key === ' ' || e.key === 'Space') {
+                    e.preventDefault();
+                    if (isRecording) {
+                        pauseRecording();
+                    } else if (!recordBtn.disabled) {
+                        startRecordingWithCountdown();
+                    }
+                }
+                if (e.key === 'p' || e.key === 'P') {
+                    if (!photoBtn.disabled) capturePhoto();
+                }
+                if (e.key === 'Escape') {
+                    if (settingsPanel.classList.contains('open')) settingsPanel.classList.remove('open');
+                }
+            });
+
+            // ─── Init ──────────────────────────────────────────────────
+            async function init() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    showError('Browser not supported', 'Camera access unavailable.');
+                    return;
+                }
+                if (typeof HTMLCanvasElement.prototype.captureStream !== 'function') {
+                    showError('Canvas capture not supported', 'Please use a modern browser.');
+                    return;
+                }
+                // Set initial grid toggle state (off)
+                gridToggle.classList.remove('active');
+                gridOverlay.classList.remove('active');
+                gridOverlayLandscape.classList.remove('active');
+                // Set initial motion toggle off
+                motionToggle.classList.remove('active');
+                motionEnabled = false;
+                // Set initial voice toggle off
+                voiceToggle.classList.remove('active');
+                voiceEnabled = false;
+
+                statusMsg.textContent = 'Starting camera…';
+                await startCamera();
+            }
+
+            // Override onRecorderStop to handle final save and re-enable buttons
+            const originalOnRecorderStop = onRecorderStop;
+            onRecorderStop = function(type) {
+                // Call original logic
+                originalOnRecorderStop(type);
+                // After final save, if not recording anymore, re-enable controls
+                if (!isRecording) {
+                    // Actually we need to wait for both recorders to stop and chunks saved.
+                    // But original already handles it.
+                    // We'll set a timeout to enable record button if both stopped.
+                    const bothStopped =
+                        (!landscapeRecorder || landscapeRecorder.state === 'inactive') &&
+                        (!portraitRecorder || portraitRecorder.state === 'inactive');
+                    if (bothStopped) {
+                        recordBtn.disabled = false;
+                        stopBtn.disabled = true;
+                        photoBtn.disabled = false;
+                        recBadge.classList.remove('active');
+                    }
+                }
+            };
+
+            // Also need to handle case where onstop is called for segment splits.
+            // We'll add a flag to differentiate.
+            let isSegmenting = false;
+
+            // We'll patch startRecordingInternal to handle segmenting better.
+            const origStartRecordingInternal = startRecordingInternal;
+            startRecordingInternal = function() {
+                // If we are segmenting, we don't want to reset everything.
+                // We'll call original but with a flag.
+                if (isSegmenting) {
+                    // Just reset chunks and start new recorders, but keep recording state.
+                    // Actually we can just call orig.
+                }
+                origStartRecordingInternal();
+            };
+
+            // Override splitSegment to use the flag.
+            const origSplitSegment = splitSegment;
+            splitSegment = function() {
+                if (!isRecording || isPaused) return;
+                isSegmenting = true;
+                // Stop recorders
+                if (landscapeRecorder && landscapeRecorder.state === 'recording') {
+                    landscapeRecorder.stop();
+                }
+                if (portraitRecorder && portraitRecorder.state === 'recording') {
+                    portraitRecorder.stop();
+                }
+                // Wait for both to stop, then restart.
+                const checkStopped = () => {
+                    if ((!landscapeRecorder || landscapeRecorder.state === 'inactive') &&
+                        (!portraitRecorder || portraitRecorder.state === 'inactive')) {
+                        isSegmenting = false;
+                        segmentCount++;
+                        // Restart recorders without resetting everything
+                        // We'll just call startRecordingInternal again, but it will reset chunks.
+                        // That's fine; we already saved the previous chunks via onstop.
+                        startRecordingInternal();
+                    } else {
+                        setTimeout(checkStopped, 200);
+                    }
+                };
+                setTimeout(checkStopped, 300);
+            };
+
+            // Finally, start the app.
+            init();
+
+            // Expose some functions for debugging if needed.
+            window.__app = {
+                startCamera,
+                capturePhoto,
+                startRecordingWithCountdown,
+                stopRecording,
+                pauseRecording,
+            };
+
+        })();
+    </script>
+
+</body>
+</html>
