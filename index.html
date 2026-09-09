@@ -931,19 +931,23 @@
                 const cropX = (vw - cropW) / 2;
                 const cropY = (vh - cropH) / 2;
 
+                // ── Portrait: crop to 9:16 ──
                 const portraitCropW = cropH * (9 / 16);
-                const portraitCropX = cropX + (cropW - portraitCropW) / 2;
+                // Ensure we don't exceed cropW
+                const portraitCropW_actual = Math.min(portraitCropW, cropW);
+                const portraitCropX = cropX + (cropW - portraitCropW_actual) / 2;
                 const portraitCropY = cropY;
                 const portraitCropH = cropH;
 
                 pCtx.clearRect(0, 0, PORTRAIT_W, PORTRAIT_H);
                 pCtx.drawImage(
                     video,
-                    portraitCropX, portraitCropY, portraitCropW, portraitCropH,
+                    portraitCropX, portraitCropY, portraitCropW_actual, portraitCropH,
                     0, 0, PORTRAIT_W, PORTRAIT_H
                 );
                 applyFilter(pCtx, PORTRAIT_W, PORTRAIT_H);
 
+                // ── Landscape: full zoomed area scaled to fit ──
                 lCtx.clearRect(0, 0, LANDSCAPE_W, LANDSCAPE_H);
                 const scaleX = LANDSCAPE_W / cropW;
                 const scaleY = LANDSCAPE_H / cropH;
@@ -1101,9 +1105,10 @@
                 segmentCount = 0;
                 if (segmentTimer) clearInterval(segmentTimer);
 
+                // For landscape, use the camera stream (or fallback to canvas)
                 const recordStream = processedStream || stream;
 
-                // Determine supported MIME types
+                // Determine supported MIME types (prefer MP4 on iOS)
                 const mimeTypes = [
                     'video/mp4;codecs=h264,aac',
                     'video/webm;codecs=vp9,opus',
@@ -1114,7 +1119,7 @@
                 let selectedMime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m));
                 if (!selectedMime) selectedMime = 'video/webm';
 
-                // ── Landscape ──
+                // ── Landscape recorder (on camera stream) ──
                 try {
                     landscapeRecorder = new MediaRecorder(recordStream, { mimeType: selectedMime });
                     landscapeMimeType = selectedMime;
@@ -1124,9 +1129,11 @@
                     landscapeRecorder.onstop = () => {
                         onRecorderStop('landscape');
                     };
+                    // Start with timeslice to ensure data flows
                     landscapeRecorder.start(1000);
                 } catch (err) {
-                    console.warn('Landscape recorder failed, fallback:', err);
+                    console.warn('Landscape recorder on stream failed, falling back to canvas:', err);
+                    // Fallback: record from landscape canvas
                     try {
                         const lStream = landscapeCanvas.captureStream(30);
                         const audioTrack = recordStream.getAudioTracks()[0];
@@ -1148,9 +1155,10 @@
                     }
                 }
 
-                // ── Portrait ──
+                // ── Portrait recorder (always from canvas) ──
                 try {
                     const pStream = portraitCanvas.captureStream(30);
+                    // Attempt to add audio from camera
                     const audioTrack = recordStream.getAudioTracks()[0];
                     if (audioTrack) {
                         try { pStream.addTrack(audioTrack.clone()); } catch (_) {}
@@ -1224,12 +1232,15 @@
                     (!portraitRecorder || portraitRecorder.state === 'inactive');
                 if (!bothStopped) return;
 
+                // Ensure we have at least one chunk by forcing a dataavailable event
+                // (the stop() already fires a final one, but we can also request)
+                // We'll just use what we have.
+
                 const ts = timestamp();
                 const files = [];
-                // Use stored mime types for correct blob
                 if (landscapeChunks.length > 0) {
                     const blob = new Blob(landscapeChunks, { type: landscapeMimeType });
-                    if (blob.size > 0) {
+                    if (blob.size > 1000) { // Only save if at least 1KB
                         const seg = segmentCount > 0 ? `_seg${segmentCount}` : '';
                         const ext = landscapeMimeType.includes('mp4') ? 'mp4' : 'webm';
                         files.push({
@@ -1238,11 +1249,13 @@
                             type: landscapeMimeType,
                             label: `🖥️ Land${seg}`
                         });
+                    } else {
+                        console.warn('Landscape blob too small, ignoring');
                     }
                 }
                 if (portraitChunks.length > 0) {
                     const blob = new Blob(portraitChunks, { type: portraitMimeType });
-                    if (blob.size > 0) {
+                    if (blob.size > 1000) {
                         const seg = segmentCount > 0 ? `_seg${segmentCount}` : '';
                         const ext = portraitMimeType.includes('mp4') ? 'mp4' : 'webm';
                         files.push({
@@ -1251,12 +1264,16 @@
                             type: portraitMimeType,
                             label: `📱 Port${seg}`
                         });
+                    } else {
+                        console.warn('Portrait blob too small, ignoring');
                     }
                 }
                 if (files.length > 0) {
                     addFiles(files);
                     downloadFilesSequentially(files);
                     statusMsg.textContent = `📼 Segment ${segmentCount+1} saved`;
+                } else {
+                    statusMsg.textContent = '⚠️ Recording had no data, try longer recording';
                 }
                 landscapeChunks = [];
                 portraitChunks = [];
@@ -1300,6 +1317,7 @@
                 isPaused = false;
                 if (landscapeRecorder && landscapeRecorder.state === 'recording') landscapeRecorder.stop();
                 if (portraitRecorder && portraitRecorder.state === 'recording') portraitRecorder.stop();
+                // Also force a dataavailable by requesting a small timeslice? Not needed.
                 statusMsg.textContent = '⏹️ Stopping...';
             }
 
