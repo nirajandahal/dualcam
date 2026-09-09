@@ -11,20 +11,16 @@
             padding: 0;
             box-sizing: border-box;
         }
-        body {
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
             background: #0b0e14;
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
             color: #fff;
             user-select: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
         .app {
-            position: relative;
             width: 100vw;
             height: 100vh;
             background: #11161f;
@@ -72,7 +68,6 @@
             object-fit: cover;
         }
 
-        /* ── Grid overlay (rule of thirds) ── */
         .grid-overlay {
             position: absolute;
             top: 0;
@@ -110,7 +105,6 @@
             border-right: 1px solid rgba(255, 255, 255, 0.4);
         }
 
-        /* ── Recording badge ── */
         .rec-badge {
             position: absolute;
             top: 18px;
@@ -163,7 +157,6 @@
             color: #fff;
         }
 
-        /* ── Controls bar ── */
         .controls {
             padding: 10px 12px 14px;
             background: rgba(17, 22, 31, 0.92);
@@ -259,7 +252,6 @@
             background: rgba(255, 255, 255, 0.12);
         }
 
-        /* ── Status bar ── */
         .status-bar {
             display: flex;
             align-items: center;
@@ -299,7 +291,6 @@
             background: rgba(42, 109, 246, 0.28);
         }
 
-        /* ── Settings panel ── */
         .settings-panel {
             position: absolute;
             top: 0;
@@ -434,7 +425,6 @@
             margin-top: 2px;
         }
 
-        /* ── Error overlay ── */
         .error-msg {
             position: absolute;
             inset: 0;
@@ -476,7 +466,6 @@
             background: #3a7aff;
         }
 
-        /* ── Responsive fine‑tune ── */
         @media (max-width: 480px) {
             .controls {
                 padding: 6px 8px 10px;
@@ -533,7 +522,6 @@
 <body>
 
     <div class="app" id="app">
-        <!-- Viewport -->
         <div class="viewport" id="viewport">
             <canvas id="portraitCanvas"></canvas>
             <div class="grid-overlay" id="gridOverlay"></div>
@@ -556,7 +544,6 @@
             </div>
         </div>
 
-        <!-- Controls -->
         <div class="controls">
             <div class="btn-group">
                 <button class="btn btn-photo" id="photoBtn" title="Photo"><span class="btn-icon">📸</span></button>
@@ -569,19 +556,16 @@
             </div>
         </div>
 
-        <!-- Status -->
         <div class="status-bar">
             <span class="status-msg" id="statusMsg">Ready</span>
             <div class="download-links" id="downloadLinks"></div>
         </div>
 
-        <!-- Settings Panel -->
         <div class="settings-panel" id="settingsPanel">
             <h3>⚙️ Settings
                 <button class="close-btn" id="closeSettings">✕</button>
             </h3>
 
-            <!-- Camera -->
             <div class="setting-group">
                 <label>Camera</label>
                 <div class="row">
@@ -597,13 +581,11 @@
                 </div>
             </div>
 
-            <!-- Zoom -->
             <div class="setting-group">
                 <label>Digital Zoom <span class="value-label" id="zoomLabel">1.0x</span></label>
                 <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" />
             </div>
 
-            <!-- Grid -->
             <div class="setting-group">
                 <div class="toggle-row">
                     <span>Rule of Thirds</span>
@@ -611,13 +593,11 @@
                 </div>
             </div>
 
-            <!-- Inset Background -->
             <div class="setting-group">
                 <label>Inset Background</label>
                 <input type="color" id="bgColorPicker" value="#000000" />
             </div>
 
-            <!-- Filters -->
             <div class="setting-group">
                 <label>Live Filter</label>
                 <select id="filterSelect">
@@ -628,14 +608,12 @@
                 </select>
             </div>
 
-            <!-- Noise Reduction -->
             <div class="setting-group">
                 <label>Noise Reduction <span class="value-label" id="noiseLabel">0%</span></label>
                 <input type="range" id="noiseSlider" min="0" max="100" step="1" value="0" />
                 <div class="hint">Higher values remove more background hum (noise gate).</div>
             </div>
 
-            <!-- Countdown -->
             <div class="setting-group">
                 <label>Countdown (sec)</label>
                 <select id="countdownSelect">
@@ -646,13 +624,11 @@
                 </select>
             </div>
 
-            <!-- Segment -->
             <div class="setting-group">
                 <label>Segment Recording (minutes, 0 = no split)</label>
                 <input type="number" id="segmentInput" value="0" min="0" max="60" step="1" />
             </div>
 
-            <!-- Motion Detection -->
             <div class="setting-group">
                 <div class="toggle-row">
                     <span>Motion Detection</span>
@@ -672,7 +648,6 @@
                 <div class="hint">Triggers when movement exceeds threshold.</div>
             </div>
 
-            <!-- Voice Commands -->
             <div class="setting-group">
                 <div class="toggle-row">
                     <span>Voice Commands</span>
@@ -718,7 +693,6 @@
             const errorSub = document.getElementById('errorSub');
             const retryBtn = document.getElementById('retryBtn');
 
-            // Settings inputs
             const resolutionSelect = document.getElementById('resolutionSelect');
             const cameraSelect = document.getElementById('cameraSelect');
             const zoomSlider = document.getElementById('zoomSlider');
@@ -743,8 +717,8 @@
             const LANDSCAPE_H = 180;
 
             // ─── State ──────────────────────────────────────────────────
-            let stream = null; // original camera stream (video+audio)
-            let processedStream = null; // stream we actually use (video from original, audio processed)
+            let stream = null;
+            let processedStream = null;
             let isStreaming = false;
             let isRecording = false;
             let isPaused = false;
@@ -752,43 +726,35 @@
             let timerInterval = null;
             let animationFrame = null;
 
-            // Audio processing
             let audioContext = null;
             let sourceNode = null;
             let gainNode = null;
-            let noiseThreshold = 0; // 0-1, from slider
-            let isAudioProcessing = false;
+            let noiseThreshold = 0;
 
-            // Recorders & chunks
             let landscapeRecorder = null;
             let portraitRecorder = null;
             let landscapeChunks = [];
             let portraitChunks = [];
+            let landscapeMimeType = 'video/webm';
+            let portraitMimeType = 'video/webm';
             let segmentCount = 0;
             let segmentTimer = null;
             let segmentDurationMs = 0;
 
-            // Files
             let capturedFiles = [];
 
-            // Zoom
             let currentZoom = 1.0;
-
-            // Filters
             let currentFilter = 'none';
 
-            // Motion detection
             let motionEnabled = false;
             let motionSensitivityVal = 20;
             let motionActionVal = 'record';
             let prevFrameData = null;
             let motionTriggered = false;
 
-            // Voice recognition
             let voiceEnabled = false;
             let recognition = null;
 
-            // Countdown
             let countdownActive = false;
             let countdownValue = 0;
             let countdownInterval = null;
@@ -804,110 +770,73 @@
 
             // ─── Audio processing ──────────────────────────────────────
             function setupAudioProcessing(originalStream) {
-                // We'll create a new audio track from the original audio, apply a noise gate, and mix it with the video.
-                return new Promise((resolve, reject) => {
+                return new Promise((resolve) => {
                     try {
                         const audioTrack = originalStream.getAudioTracks()[0];
                         if (!audioTrack) {
-                            // No audio track, just return original stream
                             resolve(originalStream);
                             return;
                         }
 
-                        // Create AudioContext
                         audioContext = new(window.AudioContext || window.webkitAudioContext)();
-
-                        // Create a MediaStreamAudioSourceNode from the original stream
+                        // Resume on first user interaction (handled later)
                         sourceNode = audioContext.createMediaStreamSource(originalStream);
 
-                        // Create a GainNode for volume control (we'll use it as a noise gate)
-                        gainNode = audioContext.createGain();
-                        gainNode.gain.value = 1;
-
-                        // We'll use a DynamicsCompressorNode as a simple noise gate? Actually we can implement a custom gate using a script processor or worklet.
-                        // But for simplicity, we use a dynamics compressor with high ratio and low threshold? Not exactly.
-                        // Better: use a BiquadFilter to low‑pass? No.
-                        // We'll implement a simple noise gate using a ScriptProcessorNode (deprecated but works) or AudioWorklet.
-                        // For wider compatibility, we'll use ScriptProcessorNode.
-                        // We'll analyze input signal and reduce gain when below threshold.
-
-                        // Create a ScriptProcessorNode (deprecated but works in all browsers)
                         const scriptNode = audioContext.createScriptProcessor(1024, 1, 1);
-                        let threshold = 0.01; // will be set from slider
+                        let threshold = 0.01;
 
                         scriptNode.onaudioprocess = function(event) {
                             const input = event.inputBuffer.getChannelData(0);
                             const output = event.outputBuffer.getChannelData(0);
-                            // Compute RMS
                             let sum = 0;
                             for (let i = 0; i < input.length; i++) {
                                 sum += input[i] * input[i];
                             }
                             const rms = Math.sqrt(sum / input.length);
-                            // Apply noise gate: if rms < threshold, set gain to near zero, else full.
-                            // Use smooth transition to avoid clicks.
                             let gainVal = 1;
                             if (rms < threshold) {
-                                gainVal = 0.001; // nearly silent
+                                gainVal = 0.001;
                             } else {
-                                // scale from threshold to 1
                                 gainVal = Math.min(1, (rms - threshold) / (0.1 - threshold) + 0.1);
                             }
-                            // Apply gain
                             for (let i = 0; i < input.length; i++) {
                                 output[i] = input[i] * gainVal;
                             }
                         };
 
-                        // Connect: source -> scriptNode -> gainNode (optional) -> destination (to create new stream)
-                        // We need to create a new MediaStream from the processed audio.
-                        // We'll create a new stream with the original video track and the processed audio track.
-                        // Get the processed audio as a MediaStream from the destination.
-                        // We can create a MediaStreamDestinationNode and get its stream.
+                        const updateThreshold = () => {
+                            const val = parseFloat(noiseSlider.value) / 100;
+                            threshold = 0.001 + val * 0.1;
+                        };
+                        noiseSlider.addEventListener('input', updateThreshold);
+                        updateThreshold();
+
                         const dest = audioContext.createMediaStreamDestination();
                         sourceNode.connect(scriptNode);
                         scriptNode.connect(dest);
 
-                        // Now we have dest.stream which contains the processed audio.
-                        // Combine with original video track.
                         const videoTrack = originalStream.getVideoTracks()[0];
                         if (!videoTrack) {
                             resolve(originalStream);
                             return;
                         }
-                        // Create new stream
                         const newStream = new MediaStream();
                         newStream.addTrack(videoTrack);
-                        // Add processed audio track
                         const processedAudioTrack = dest.stream.getAudioTracks()[0];
                         if (processedAudioTrack) {
                             newStream.addTrack(processedAudioTrack);
                         } else {
-                            // fallback to original audio
                             const origAudio = originalStream.getAudioTracks()[0];
                             if (origAudio) newStream.addTrack(origAudio.clone());
                         }
 
-                        // Store threshold from slider
-                        threshold = noiseThreshold; // will be updated on slider change
-
-                        // Update threshold when slider changes
-                        const updateThreshold = () => {
-                            // Map 0-100 to 0.001-0.1
-                            const val = parseFloat(noiseSlider.value) / 100;
-                            threshold = 0.001 + val * 0.1; // 0.001 (none) to 0.1 (max)
-                            // Also update gain node for safety
-                        };
-                        noiseSlider.addEventListener('input', updateThreshold);
-                        updateThreshold();
-
-                        // Store reference to scriptNode and dest for cleanup
+                        // Store for cleanup
                         window.__audioScriptNode = scriptNode;
                         window.__audioDest = dest;
 
                         resolve(newStream);
                     } catch (err) {
-                        console.warn('Audio processing failed, using original stream', err);
+                        console.warn('Audio processing failed, using raw stream', err);
                         resolve(originalStream);
                     }
                 });
@@ -944,11 +873,8 @@
 
                     const originalStream = await navigator.mediaDevices.getUserMedia(constraints);
                     stream = originalStream;
-
-                    // Process audio for noise reduction
                     processedStream = await setupAudioProcessing(originalStream);
 
-                    // Use processedStream for video display and recording
                     video.srcObject = processedStream;
                     await video.play();
 
@@ -996,7 +922,6 @@
                 const cropX = (vw - cropW) / 2;
                 const cropY = (vh - cropH) / 2;
 
-                // Portrait
                 const portraitCropW = cropH * (9 / 16);
                 const portraitCropX = cropX + (cropW - portraitCropW) / 2;
                 const portraitCropY = cropY;
@@ -1010,7 +935,6 @@
                 );
                 applyFilter(pCtx, PORTRAIT_W, PORTRAIT_H);
 
-                // Landscape
                 lCtx.clearRect(0, 0, LANDSCAPE_W, LANDSCAPE_H);
                 const scaleX = LANDSCAPE_W / cropW;
                 const scaleY = LANDSCAPE_H / cropH;
@@ -1026,7 +950,6 @@
                 );
                 applyFilter(lCtx, LANDSCAPE_W, LANDSCAPE_H);
 
-                // Motion detection
                 if (motionEnabled && !isRecording && !countdownActive) {
                     detectMotion(pCtx);
                 }
@@ -1107,7 +1030,11 @@
                     statusMsg.textContent = '⚠️ Camera not ready';
                     return;
                 }
-                // We'll use toBlob on canvases
+                // Resume audio context if needed
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+
                 Promise.all([
                     new Promise(resolve => portraitCanvas.toBlob(resolve, 'image/png')),
                     new Promise(resolve => landscapeCanvas.toBlob(resolve, 'image/png'))
@@ -1122,13 +1049,17 @@
                     }
                     if (files.length === 0) return;
                     addFiles(files);
-                    files.forEach(f => downloadBlob(f.blob, f.name));
+                    // Sequential download
+                    downloadFilesSequentially(files);
                     statusMsg.textContent = `📸 Photo saved (${files.length})`;
                 });
             }
 
             // ─── Recording ─────────────────────────────────────────────
             function startRecordingWithCountdown() {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
                 const countdown = parseInt(countdownSelect.value) || 0;
                 if (countdown > 0) {
                     countdownActive = true;
@@ -1161,23 +1092,23 @@
                 segmentCount = 0;
                 if (segmentTimer) clearInterval(segmentTimer);
 
-                // Use processedStream for recording (it has the noise‑reduced audio)
                 const recordStream = processedStream || stream;
 
-                // ── Landscape recorder ──
-                try {
-                    const mimeTypes = [
-                        'video/webm;codecs=vp9,opus',
-                        'video/webm;codecs=vp8,opus',
-                        'video/webm;codecs=h264,opus',
-                        'video/mp4;codecs=h264,aac'
-                    ];
-                    let selectedMime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m));
-                    if (!selectedMime) selectedMime = 'video/webm'; // fallback
+                // Determine supported MIME types
+                const mimeTypes = [
+                    'video/mp4;codecs=h264,aac',
+                    'video/webm;codecs=vp9,opus',
+                    'video/webm;codecs=vp8,opus',
+                    'video/webm;codecs=h264,opus',
+                    'video/webm'
+                ];
+                let selectedMime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m));
+                if (!selectedMime) selectedMime = 'video/webm';
 
-                    landscapeRecorder = new MediaRecorder(recordStream, {
-                        mimeType: selectedMime,
-                    });
+                // ── Landscape ──
+                try {
+                    landscapeRecorder = new MediaRecorder(recordStream, { mimeType: selectedMime });
+                    landscapeMimeType = selectedMime;
                     landscapeRecorder.ondataavailable = (e) => {
                         if (e.data && e.data.size > 0) landscapeChunks.push(e.data);
                     };
@@ -1186,15 +1117,14 @@
                     };
                     landscapeRecorder.start(1000);
                 } catch (err) {
-                    console.warn('Landscape recorder failed, trying canvas stream:', err);
+                    console.warn('Landscape recorder failed, fallback:', err);
                     try {
                         const lStream = landscapeCanvas.captureStream(30);
-                        // add audio from recordStream
                         const audioTrack = recordStream.getAudioTracks()[0];
                         if (audioTrack) lStream.addTrack(audioTrack.clone());
-                        landscapeRecorder = new MediaRecorder(lStream, {
-                            mimeType: 'video/webm;codecs=vp9',
-                        });
+                        const fallbackMime = 'video/webm';
+                        landscapeRecorder = new MediaRecorder(lStream, { mimeType: fallbackMime });
+                        landscapeMimeType = fallbackMime;
                         landscapeRecorder.ondataavailable = (e) => {
                             if (e.data && e.data.size > 0) landscapeChunks.push(e.data);
                         };
@@ -1209,27 +1139,15 @@
                     }
                 }
 
-                // ── Portrait recorder ──
+                // ── Portrait ──
                 try {
                     const pStream = portraitCanvas.captureStream(30);
                     const audioTrack = recordStream.getAudioTracks()[0];
                     if (audioTrack) {
-                        try {
-                            pStream.addTrack(audioTrack.clone());
-                        } catch (_) {}
+                        try { pStream.addTrack(audioTrack.clone()); } catch (_) {}
                     }
-                    const mimeTypes = [
-                        'video/webm;codecs=vp9,opus',
-                        'video/webm;codecs=vp8,opus',
-                        'video/webm;codecs=h264,opus',
-                        'video/mp4;codecs=h264,aac'
-                    ];
-                    let selectedMime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m));
-                    if (!selectedMime) selectedMime = 'video/webm';
-
-                    portraitRecorder = new MediaRecorder(pStream, {
-                        mimeType: selectedMime,
-                    });
+                    portraitRecorder = new MediaRecorder(pStream, { mimeType: selectedMime });
+                    portraitMimeType = selectedMime;
                     portraitRecorder.ondataavailable = (e) => {
                         if (e.data && e.data.size > 0) portraitChunks.push(e.data);
                     };
@@ -1273,19 +1191,17 @@
 
             function splitSegment() {
                 if (!isRecording || isPaused) return;
-                // Stop recorders to trigger onstop and save segment
                 if (landscapeRecorder && landscapeRecorder.state === 'recording') {
                     landscapeRecorder.stop();
                 }
                 if (portraitRecorder && portraitRecorder.state === 'recording') {
                     portraitRecorder.stop();
                 }
-                // Wait for both to stop, then restart
                 const checkStopped = () => {
                     if ((!landscapeRecorder || landscapeRecorder.state === 'inactive') &&
                         (!portraitRecorder || portraitRecorder.state === 'inactive')) {
                         segmentCount++;
-                        startRecordingInternal(); // This resets chunks and starts new recorders
+                        startRecordingInternal();
                     } else {
                         setTimeout(checkStopped, 200);
                     }
@@ -1301,39 +1217,41 @@
 
                 const ts = timestamp();
                 const files = [];
+                // Use stored mime types for correct blob
                 if (landscapeChunks.length > 0) {
-                    const blob = new Blob(landscapeChunks, { type: 'video/webm' });
+                    const blob = new Blob(landscapeChunks, { type: landscapeMimeType });
                     if (blob.size > 0) {
                         const seg = segmentCount > 0 ? `_seg${segmentCount}` : '';
+                        const ext = landscapeMimeType.includes('mp4') ? 'mp4' : 'webm';
                         files.push({
-                            name: `landscape${seg}_${ts}.webm`,
+                            name: `landscape${seg}_${ts}.${ext}`,
                             blob: blob,
-                            type: 'video/webm',
+                            type: landscapeMimeType,
                             label: `🖥️ Land${seg}`
                         });
                     }
                 }
                 if (portraitChunks.length > 0) {
-                    const blob = new Blob(portraitChunks, { type: 'video/webm' });
+                    const blob = new Blob(portraitChunks, { type: portraitMimeType });
                     if (blob.size > 0) {
                         const seg = segmentCount > 0 ? `_seg${segmentCount}` : '';
+                        const ext = portraitMimeType.includes('mp4') ? 'mp4' : 'webm';
                         files.push({
-                            name: `portrait${seg}_${ts}.webm`,
+                            name: `portrait${seg}_${ts}.${ext}`,
                             blob: blob,
-                            type: 'video/webm',
+                            type: portraitMimeType,
                             label: `📱 Port${seg}`
                         });
                     }
                 }
                 if (files.length > 0) {
                     addFiles(files);
-                    files.forEach(f => downloadBlob(f.blob, f.name));
+                    downloadFilesSequentially(files);
                     statusMsg.textContent = `📼 Segment ${segmentCount+1} saved`;
                 }
                 landscapeChunks = [];
                 portraitChunks = [];
 
-                // If recording has been stopped (not segmenting), clean up UI
                 if (!isRecording) {
                     recordBtn.disabled = false;
                     stopBtn.disabled = true;
@@ -1371,10 +1289,8 @@
                 if (!isRecording) return;
                 isRecording = false;
                 isPaused = false;
-                // Stop recorders; onstop will finalize
                 if (landscapeRecorder && landscapeRecorder.state === 'recording') landscapeRecorder.stop();
                 if (portraitRecorder && portraitRecorder.state === 'recording') portraitRecorder.stop();
-                // UI will be updated in onstop
                 statusMsg.textContent = '⏹️ Stopping...';
             }
 
@@ -1383,6 +1299,28 @@
                 const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
                 const s = String(elapsed % 60).padStart(2, '0');
                 recTimer.textContent = `${m}:${s}`;
+            }
+
+            // ─── Download helpers ─────────────────────────────────────
+            function downloadFilesSequentially(files) {
+                let delay = 0;
+                files.forEach((f, idx) => {
+                    setTimeout(() => {
+                        downloadBlob(f.blob, f.name);
+                    }, delay);
+                    delay += 600; // 600ms between downloads
+                });
+            }
+
+            function downloadBlob(blob, filename) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 3000);
             }
 
             // ─── File management ──────────────────────────────────────
@@ -1422,17 +1360,6 @@
                 });
             }
 
-            function downloadBlob(blob, filename) {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(url), 3000);
-            }
-
             function formatSize(bytes) {
                 if (bytes < 1024) return bytes + 'B';
                 if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'KB';
@@ -1445,7 +1372,6 @@
                 return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
             }
 
-            // ─── Helpers ──────────────────────────────────────────────
             function showError(title, sub) {
                 errorOverlay.style.display = 'flex';
                 errorText.textContent = title;
@@ -1473,14 +1399,10 @@
                 currentFilter = filterSelect.value;
             });
 
-            // Noise reduction slider updates label and threshold via audio processing
             noiseSlider.addEventListener('input', () => {
                 const val = parseInt(noiseSlider.value);
                 noiseLabel.textContent = val + '%';
-                // The audio processing scriptNode will pick up the threshold via its own listener
-                // We need to update the threshold variable used inside scriptNode.
-                // Since we set up the listener on noiseSlider in setupAudioProcessing, it's already linked.
-                // We'll just trigger the event manually.
+                // The audio script node listens to the same event
                 const ev = new Event('input');
                 noiseSlider.dispatchEvent(ev);
             });
@@ -1628,7 +1550,6 @@
             const origOnRecorderStop = onRecorderStop;
             onRecorderStop = function(type) {
                 origOnRecorderStop(type);
-                // If not recording anymore, re-enable buttons
                 if (!isRecording) {
                     recordBtn.disabled = false;
                     stopBtn.disabled = true;
