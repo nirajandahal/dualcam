@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DualView">
+<title>DualView Camera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&display=swap">
+<style>
+:root{
+  --void:#000;
+  --graphite:#1d1e21;
+  --graphite-2:#2c2d31;
+  --rule:#393b40;
+  --text:#f3f3f1;
+  --muted:#9d9fa5;
+  --amber:#ffb224;   /* 9:16 vertical frame */
+  --sky:#6cc4ff;     /* 16:9 horizontal frame */
+  --tally:#ff3b2f;   /* recording */
+  --sat:env(safe-area-inset-top,0px);
+  --sar:env(safe-area-inset-right,0px);
+  --sab:env(safe-area-inset-bottom,0px);
+  --sal:env(safe-area-inset-left,0px);
+  --ui:'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --readout:'Barlow Semi Condensed','Barlow',system-ui,-apple-system,sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--void);color:var(--text);font-family:var(--ui);-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+body{overflow:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+h1,h2,h3,p{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;touch-action:manipulation}
+button:disabled{cursor:default}
+[hidden]{display:none!important}
+:focus{outline:none}
+:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+svg{display:block}
+.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.g-v{fill:none;stroke:var(--amber);stroke-width:1.5}
+.g-h{fill:none;stroke:var(--sky);stroke-width:1.5}
+
+/* ───────── Shell ───────── */
+.app{
+  position:fixed;inset:0;display:grid;
+  grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"top" "stage" "deck";
+  padding:var(--sat) var(--sar) var(--sab) var(--sal);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
+
+/* ───────── Top bar ───────── */
+.topbar{grid-area:top;position:relative;z-index:4;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:6px 8px;min-height:56px}
+.tb-start,.tb-end{display:flex;align-items:center;gap:2px}
+.tb-end{justify-content:flex-end}
+.tb-center{display:grid;justify-items:center;align-items:center}
+.tb-center>*{grid-area:1/1}
+.icon-btn{width:44px;height:44px;display:grid;place-items:center;border-radius:50%;color:var(--text);transition:background-color .15s,color .15s}
+.icon-btn:disabled{opacity:.35}
+.icon-btn[aria-pressed="true"]{background:var(--text);color:#000}
+.icon-btn.round{width:50px;height:50px;background:var(--graphite)}
+@media (hover:hover){.icon-btn:not(:disabled):not([aria-pressed="true"]):hover{background:rgba(255,255,255,.1)}.icon-btn.round:not(:disabled):hover{background:var(--graphite-2)}}
+
+.format-switch{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--graphite)}
+.format-switch button{display:flex;align-items:center;gap:6px;min-height:34px;padding:0 11px;border-radius:999px;font-family:var(--readout);font-size:15px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums;transition:background-color .15s,color .15s}
+.format-switch button[aria-checked="true"]{background:var(--graphite-2);color:var(--text)}
+.format-switch button:disabled{cursor:default}
+.format-switch .fglyph{width:16px;height:16px;opacity:.55;transition:opacity .15s}
+.format-switch button[aria-checked="true"] .fglyph{opacity:1}
+.app:not([data-rec="idle"]) .format-switch{visibility:hidden}
+
+.tally{display:none;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:6px;background:var(--tally);color:#fff;font-family:var(--readout);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.tally-dot{width:8px;height:8px;border-radius:50%;background:#fff}
+.app[data-rec="recording"] .tally-dot{animation:blink 1.2s steps(1,end) infinite}
+.app[data-rec="paused"] .tally{background:var(--graphite-2)}
+.app:not([data-rec="idle"]) .tally-top{display:flex}
+@keyframes blink{50%{opacity:.2}}
+
+/* ───────── Stage / viewfinder ───────── */
+.stage{grid-area:stage;position:relative;overflow:hidden;background:var(--void);touch-action:none}
+.capture-surfaces{position:absolute;left:0;top:0;width:2px;height:2px;overflow:hidden;z-index:0;pointer-events:none}
+.capture-surfaces canvas{display:block;width:1px;height:1px}
+.frame{position:absolute;left:50%;top:50%;width:0;height:0;transform:translate(-50%,-50%);overflow:hidden;z-index:1;background:#080808;--zoom:1}
+.frame video{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;transform:scale(var(--zoom));transform-origin:50% 50%;transition:transform .2s var(--ease);pointer-events:none}
+.frame.mirrored video{transform:scale(var(--zoom)) scaleX(-1)}
+.frame.pinching video{transition:none}
+.guides{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.shade{position:absolute;inset:0;z-index:2;background:#000;opacity:0;pointer-events:none}
+.shade.go{animation:shutter .24s ease-out}
+@keyframes shutter{0%{opacity:.85}100%{opacity:0}}
+
+.zoom-chips{position:absolute;left:50%;bottom:calc(var(--gap-y,0px) + 12px);transform:translateX(-50%);z-index:3;display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.zoom-chips button{min-width:36px;height:36px;padding:0 7px;border-radius:999px;font-family:var(--readout);font-size:14px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.zoom-chips button[aria-pressed="true"]{background:var(--text);color:#000}
+
+.tally-stage{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:5}
+
+.countdown{position:absolute;inset:0;z-index:4;display:grid;place-items:center;pointer-events:none;font-family:var(--readout);font-weight:600;font-size:clamp(96px,24vmin,176px);line-height:1;font-variant-numeric:tabular-nums;color:#fff;text-shadow:0 2px 30px rgba(0,0,0,.55)}
+.countdown.tick{animation:tick .9s var(--ease)}
+@keyframes tick{0%{transform:scale(1.3);opacity:0}30%{transform:none;opacity:1}100%{opacity:.9}}
+
+.stage-status{position:absolute;inset:0;z-index:3;display:grid;place-items:center;color:var(--muted);font-size:15px}
+
+.notice{position:absolute;inset:0;z-index:6;display:grid;place-items:center;padding:24px;background:var(--void)}
+.notice-inner{max-width:340px}
+.notice-inner svg{width:48px;height:48px;margin-bottom:20px}
+.notice h2{font-size:22px;line-height:1.25;font-weight:600;margin-bottom:8px}
+.notice p{font-size:15px;line-height:1.55;color:var(--muted)}
+.notice .btn{margin-top:22px}
+
+.toast{position:absolute;top:12px;left:50%;z-index:7;width:max-content;max-width:min(420px,calc(100% - 32px));padding:9px 14px;border-radius:10px;background:rgba(29,30,33,.95);font-size:14px;line-height:1.35;text-align:center;opacity:0;transform:translate(-50%,-6px);transition:opacity .2s,transform .25s var(--ease);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.app:not([data-rec="idle"]) .toast{top:56px}
+
+/* ───────── Deck ───────── */
+.deck{grid-area:deck;z-index:4;display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 16px 14px}
+.mode-switch{display:flex;gap:4px}
+.mode-switch button{min-height:34px;padding:0 16px;border-radius:999px;font-family:var(--readout);font-size:16px;font-weight:600;letter-spacing:.01em;color:var(--muted);transition:background-color .15s,color .15s}
+.mode-switch button[aria-checked="true"]{background:var(--graphite);color:var(--text)}
+.app:not([data-rec="idle"]) .mode-switch{visibility:hidden}
+.shutter-row{width:100%;max-width:340px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.slot{display:flex;align-items:center}
+.slot-start{justify-content:flex-start}
+.slot-end{justify-content:flex-end}
+
+.shutter{width:78px;height:78px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 0 0 4px var(--text)}
+.shutter:disabled{opacity:.35}
+.shutter-core{width:62px;height:62px;border-radius:50%;background:var(--text);transition:width .22s var(--ease),height .22s var(--ease),border-radius .22s var(--ease),background-color .2s,transform .1s}
+.app[data-mode="video"] .shutter-core{background:var(--tally)}
+.app:not([data-rec="idle"]) .shutter-core{width:30px;height:30px;border-radius:7px;background:var(--tally)}
+.app.counting .shutter-core{width:30px;height:30px;border-radius:7px;background:var(--text)}
+.shutter:not(:disabled):active .shutter-core{transform:scale(.9)}
+
+.thumb{width:50px;height:50px;border-radius:10px;overflow:hidden;background:var(--graphite);box-shadow:inset 0 0 0 1px var(--rule)}
+.thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.thumb.empty img{display:none}
+.thumb.pop img{animation:pop .4s var(--ease)}
+@keyframes pop{0%{transform:scale(.5);opacity:0}100%{transform:none;opacity:1}}
+
+/* ───────── Buttons & controls ───────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 18px;border-radius:999px;font-size:15px;font-weight:600;white-space:nowrap;transition:background-color .15s,opacity .15s}
+.btn-primary{background:var(--text);color:#000}
+.btn-quiet{background:var(--graphite-2);color:var(--text)}
+@media (hover:hover){.btn-primary:hover{background:#fff}.btn-quiet:hover{background:#37383d}}
+
+.scrim{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s}
+.scrim.show{opacity:1;pointer-events:auto}
+
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-height:min(84%,760px);display:flex;flex-direction:column;background:var(--graphite);border-radius:18px 18px 0 0;padding-bottom:var(--sab);transform:translateY(105%);visibility:hidden;transition:transform .32s var(--ease),visibility 0s linear .32s}
+.sheet.open{transform:none;visibility:visible;transition:transform .32s var(--ease),visibility 0s}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;padding:10px 8px 2px 20px}
+.sheet-head h2{font-size:20px;font-weight:600}
+.sheet-body{overflow-y:auto;overscroll-behavior:contain;padding:0 20px 24px;-webkit-overflow-scrolling:touch}
+.group{padding:16px 0 10px;border-top:1px solid var(--rule)}
+.group:first-child{border-top:0;padding-top:6px}
+.group h3{font-size:14px;font-weight:500;color:var(--muted);margin-bottom:4px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:52px;padding:6px 0}
+.row.stack{flex-direction:column;align-items:stretch;gap:10px;padding:10px 0}
+label.row{cursor:pointer}
+.row-text{display:flex;flex-direction:column;gap:2px}
+.row-label{font-size:16px;line-height:1.3}
+.row-hint{font-size:13px;line-height:1.45;color:var(--muted)}
+.seg{display:flex;gap:2px;padding:3px;border-radius:11px;background:var(--void)}
+.seg label{position:relative;flex:1;cursor:pointer}
+.seg input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.seg span{display:block;padding:8px 6px;border-radius:8px;text-align:center;font-size:14px;font-weight:500;color:var(--muted);transition:background-color .15s,color .15s}
+.seg input:checked+span{background:var(--graphite-2);color:var(--text)}
+.seg input:focus-visible+span{outline:2px solid var(--text);outline-offset:-2px}
+.seg input:disabled+span{opacity:.4}
+.switch{-webkit-appearance:none;appearance:none;position:relative;flex-shrink:0;width:50px;height:30px;margin:0;border-radius:999px;background:var(--rule);cursor:pointer;transition:background-color .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--text);transition:transform .22s var(--ease),background-color .2s}
+.switch:checked{background:var(--text)}
+.switch:checked::after{transform:translateX(20px);background:#000}
+.switch:disabled{opacity:.4}
+.range{width:100%;margin:0;accent-color:var(--text);height:28px}
+.range-ends{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:-2px}
+
+/* ───────── Captures ───────── */
+.review{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;background:var(--void);padding:var(--sat) var(--sar) 0 var(--sal);transform:translateY(100%);visibility:hidden;transition:transform .34s var(--ease),visibility 0s linear .34s}
+.review.open{transform:none;visibility:visible;transition:transform .34s var(--ease),visibility 0s}
+.review-head{display:flex;align-items:center;gap:6px;min-height:56px;padding:6px 12px 6px 6px;border-bottom:1px solid var(--rule)}
+.review-head h2{font-size:20px;font-weight:600}
+.review-count{flex:1;font-family:var(--readout);font-size:16px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+.review-list{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:0 16px calc(24px + var(--sab));display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));column-gap:28px;align-content:start}
+.review-empty{flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;max-width:360px;margin:0 auto;padding:24px}
+.review-empty p:first-child{font-size:18px;font-weight:500}
+.shot{padding:18px 0;border-bottom:1px solid var(--rule)}
+.shot-media{--h:min(140px,calc((100vw - 48px) / 2.34));display:flex;align-items:flex-end;gap:8px}
+.tile{position:relative;height:var(--h);border-radius:4px;overflow:hidden;background:var(--graphite)}
+.tile-vertical{aspect-ratio:9/16;--edge:var(--amber)}
+.tile-horizontal{aspect-ratio:16/9;--edge:var(--sky)}
+.tile img{display:block;width:100%;height:100%;object-fit:cover}
+.tile::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1.5px var(--edge);pointer-events:none}
+.tile-tag{position:absolute;left:6px;top:6px;padding:1px 5px;border-radius:3px;background:var(--edge);color:#000;font-family:var(--readout);font-size:12px;font-weight:600;line-height:16px}
+.tile-dur{position:absolute;right:6px;bottom:6px;display:flex;align-items:center;gap:3px;padding:1px 6px 1px 4px;border-radius:3px;background:rgba(0,0,0,.6);font-family:var(--readout);font-size:12px;font-weight:600;line-height:16px;font-variant-numeric:tabular-nums}
+.shot-meta{display:flex;align-items:center;gap:12px;margin-top:12px}
+.shot-info{flex:1;display:flex;align-items:baseline;gap:8px}
+.shot-kind{font-size:16px;font-weight:500}
+.shot-time{font-family:var(--readout);font-size:15px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.viewer{position:fixed;inset:0;z-index:40;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#000;padding:var(--sat) var(--sar) var(--sab) var(--sal)}
+.viewer-bar{display:flex;align-items:center;gap:8px;min-height:56px;padding:6px 12px 6px 6px}
+.viewer-title{flex:1;min-width:0;font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.viewer-formats{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--graphite)}
+.viewer-formats button{min-height:30px;padding:0 10px;border-radius:999px;font-family:var(--readout);font-size:14px;font-weight:600;color:var(--muted)}
+.viewer-formats button[aria-checked="true"]{background:var(--graphite-2);color:var(--text)}
+.viewer-media{display:grid;place-items:center;min-height:0;padding:4px 12px}
+.viewer-media img,.viewer-media video{display:block;max-width:100%;max-height:100%;border-radius:2px;background:#0b0b0b}
+.viewer-actions{display:flex;justify-content:center;gap:10px;padding:12px 16px 14px}
+.viewer-actions .btn{min-width:130px}
+
+/* ───────── Small phones ───────── */
+@media (max-width:379px){
+  .topbar .icon-btn{width:40px;height:40px}
+  .format-switch button{padding:0 8px}
+  .format-switch .fglyph{display:none}
+}
+
+/* ───────── Landscape phones, tablets & desktop ───────── */
+@media (orientation:landscape){
+  .app{grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:minmax(0,1fr);grid-template-areas:"top stage deck"}
+  .topbar{display:flex;flex-direction:column;justify-content:space-between;align-items:center;min-height:0;padding:12px 6px}
+  .tb-start,.tb-end{flex-direction:column}
+  .format-switch{flex-direction:column;border-radius:22px}
+  .format-switch button{flex-direction:column;justify-content:center;gap:2px;min-height:48px;padding:4px 9px;border-radius:19px;font-size:14px}
+  .format-switch .fglyph{display:block}
+  .tally-top{display:none!important}
+  .app:not([data-rec="idle"]) .tally-stage{display:flex}
+  .deck{flex-direction:row;align-items:center;gap:6px;padding:12px 14px 12px 4px}
+  .mode-switch{flex-direction:column}
+  .shutter-row{width:auto;max-width:none;height:min(100%,340px);grid-template-columns:auto;grid-template-rows:1fr auto 1fr;justify-items:center}
+  .slot-end{grid-row:1;align-self:start}
+  .shutter{grid-row:2}
+  .slot-start{grid-row:3;align-self:end}
+  .zoom-chips{left:auto;right:calc(var(--gap-x,0px) + 12px);bottom:auto;top:50%;transform:translateY(-50%);flex-direction:column}
+  .sheet{left:auto;top:0;width:min(380px,100%);max-height:none;border-radius:0;padding:var(--sat) var(--sar) var(--sab) 0;transform:translateX(105%)}
+  .sheet.open{transform:none}
+}
+@media (orientation:portrait) and (min-width:640px){
+  .sheet{left:50%;right:auto;width:560px;margin-left:-280px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:1ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app" data-mode="photo" data-rec="idle">
+
+  <header class="topbar">
+    <div class="tb-start">
+      <button class="icon-btn" id="torchBtn" type="button" aria-label="Flashlight" aria-pressed="false" hidden>
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.2 3 5.5 13.2h5.6L10.3 21l8.2-10.4h-5.7z"/></svg>
+      </button>
+      <button class="icon-btn" id="gridBtn" type="button" aria-label="Grid lines" aria-pressed="false">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9.33 4v16M14.67 4v16M4 9.33h16M4 14.67h16"/></svg>
+      </button>
+    </div>
+    <div class="tb-center">
+      <div class="format-switch" id="formatSwitch" role="radiogroup" aria-label="Output format">
+        <button type="button" role="radio" aria-checked="false" data-format="vertical" aria-label="Vertical 9:16 only">
+          <svg class="fglyph" viewBox="0 0 16 16" aria-hidden="true"><rect class="g-v" x="4.75" y="1.25" width="6.5" height="13.5" rx="1"/></svg><span>9:16</span>
+        </button>
+        <button type="button" role="radio" aria-checked="true" data-format="both" aria-label="Both formats">
+          <svg class="fglyph" viewBox="0 0 16 16" aria-hidden="true"><rect class="g-v" x="5.25" y="1.25" width="5.5" height="13.5" rx="1"/><rect class="g-h" x="1.25" y="5.25" width="13.5" height="5.5" rx="1"/></svg><span>Both</span>
+        </button>
+        <button type="button" role="radio" aria-checked="false" data-format="horizontal" aria-label="Horizontal 16:9 only">
+          <svg class="fglyph" viewBox="0 0 16 16" aria-hidden="true"><rect class="g-h" x="1.25" y="4.75" width="13.5" height="6.5" rx="1"/></svg><span>16:9</span>
+        </button>
+      </div>
+      <div class="tally tally-top" aria-hidden="true"><span class="tally-dot"></span><span class="tally-time">00:00</span></div>
+    </div>
+    <div class="tb-end">
+      <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings" aria-haspopup="dialog">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <div class="capture-surfaces" aria-hidden="true"><canvas id="vCanvas"></canvas><canvas id="hCanvas"></canvas></div>
+    <div class="frame" id="frame">
+      <video id="video" playsinline webkit-playsinline muted autoplay disablepictureinpicture></video>
+      <canvas class="guides" id="guides" aria-hidden="true"></canvas>
+    </div>
+    <div class="shade" id="shade"></div>
+    <div class="tally tally-stage" aria-hidden="true"><span class="tally-dot"></span><span class="tally-time">00:00</span></div>
+    <div class="countdown" id="countdown" aria-live="assertive" hidden></div>
+    <div class="zoom-chips" id="zoomChips" hidden>
+      <button type="button" data-zoom="1" aria-pressed="true">1×</button>
+      <button type="button" data-zoom="2" aria-pressed="false">2×</button>
+      <button type="button" data-zoom="3" aria-pressed="false">3×</button>
+    </div>
+    <p class="stage-status" id="stageStatus" hidden>Starting camera…</p>
+    <div class="notice" id="notice" hidden>
+      <div class="notice-inner">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><rect class="g-v" x="15" y="8" width="18" height="32" rx="2"/><rect class="g-h" x="8" y="15" width="32" height="18" rx="2"/></svg>
+        <h2 id="noticeTitle"></h2>
+        <p id="noticeBody"></p>
+        <button class="btn btn-primary" id="noticeAction" type="button"></button>
+      </div>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <footer class="deck">
+    <div class="mode-switch" id="modeSwitch" role="radiogroup" aria-label="Capture mode">
+      <button type="button" role="radio" aria-checked="true" data-mode="photo">Photo</button>
+      <button type="button" role="radio" aria-checked="false" data-mode="video">Video</button>
+    </div>
+    <div class="shutter-row">
+      <div class="slot slot-start">
+        <button class="thumb empty" id="thumbBtn" type="button" aria-label="Open captures"><img id="thumbImg" alt=""></button>
+        <button class="icon-btn round" id="pauseBtn" type="button" aria-label="Pause recording" hidden></button>
+      </div>
+      <button class="shutter" id="shutterBtn" type="button" aria-label="Take photo" disabled><span class="shutter-core"></span></button>
+      <div class="slot slot-end">
+        <button class="icon-btn round" id="flipBtn" type="button" aria-label="Switch camera">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 10.5A7.5 7.5 0 0 1 18 7"/><path d="M18.5 3.5v4h-4"/><path d="M19.5 13.5A7.5 7.5 0 0 1 6 17"/><path d="M5.5 20.5v-4h4"/></svg>
+        </button>
+        <button class="icon-btn round" id="stillBtn" type="button" aria-label="Take a photo while recording" hidden>
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.3l1.4-2h5.6l1.4 2h2.3A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        </button>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<section class="sheet" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="sheet-head">
+    <h2 id="settingsTitle">Settings</h2>
+    <button class="icon-btn" id="settingsClose" type="button" aria-label="Close settings">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="sheet-body">
+    <section class="group">
+      <h3>Capture</h3>
+      <div class="row stack">
+        <div class="row-text"><span class="row-label" id="lblQuality">Quality</span><span class="row-hint">720p records more smoothly on older phones.</span></div>
+        <div class="seg" role="radiogroup" aria-labelledby="lblQuality">
+          <label><input type="radio" name="quality" value="720"><span>720p</span></label>
+          <label><input type="radio" name="quality" value="1080" checked><span>1080p</span></label>
+        </div>
+      </div>
+      <div class="row stack">
+        <span class="row-label" id="lblTimer">Self-timer</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lblTimer">
+          <label><input type="radio" name="timer" value="0" checked><span>Off</span></label>
+          <label><input type="radio" name="timer" value="3"><span>3 s</span></label>
+          <label><input type="radio" name="timer" value="10"><span>10 s</span></label>
+        </div>
+      </div>
+      <div class="row stack">
+        <div class="row-text"><span class="row-label" id="lblLook">Look</span><span class="row-hint" id="lookHint" hidden>This browser applies looks in software, so videos may record at a lower frame rate.</span></div>
+        <div class="seg" role="radiogroup" aria-labelledby="lblLook">
+          <label><input type="radio" name="filter" value="natural" checked><span>Natural</span></label>
+          <label><input type="radio" name="filter" value="mono"><span>Mono</span></label>
+          <label><input type="radio" name="filter" value="warm"><span>Warm</span></label>
+          <label><input type="radio" name="filter" value="vivid"><span>Vivid</span></label>
+        </div>
+      </div>
+    </section>
+
+    <section class="group">
+      <h3>Sound</h3>
+      <label class="row">
+        <span class="row-text"><span class="row-label">Reduce background noise</span><span class="row-hint">Uses your device’s built-in noise suppression.</span></span>
+        <input class="switch" type="checkbox" role="switch" id="noiseSwitch" checked>
+      </label>
+    </section>
+
+    <section class="group">
+      <h3>Recording</h3>
+      <div class="row stack">
+        <div class="row-text"><span class="row-label" id="lblSplit">Split long videos</span><span class="row-hint">Starts a new file at each interval, so a long take is never lost to one crash.</span></div>
+        <div class="seg" role="radiogroup" aria-labelledby="lblSplit">
+          <label><input type="radio" name="split" value="0" checked><span>Off</span></label>
+          <label><input type="radio" name="split" value="5"><span>5 min</span></label>
+          <label><input type="radio" name="split" value="15"><span>15 min</span></label>
+          <label><input type="radio" name="split" value="30"><span>30 min</span></label>
+        </div>
+      </div>
+      <label class="row">
+        <span class="row-text"><span class="row-label">Download files automatically</span><span class="row-hint">When off, save from Captures.</span></span>
+        <input class="switch" type="checkbox" role="switch" id="autoSwitch">
+      </label>
+    </section>
+
+    <section class="group">
+      <h3>Hands-free</h3>
+      <label class="row">
+        <span class="row-text"><span class="row-label">Motion trigger</span><span class="row-hint">Captures when something moves in the frame.</span></span>
+        <input class="switch" type="checkbox" role="switch" id="motionSwitch">
+      </label>
+      <div id="motionOptions" hidden>
+        <div class="row stack">
+          <div class="row-text"><span class="row-label" id="lblMotionAction">When motion is detected</span><span class="row-hint">Videos stop after 15 seconds without motion.</span></div>
+          <div class="seg" role="radiogroup" aria-labelledby="lblMotionAction">
+            <label><input type="radio" name="motionAction" value="photo" checked><span>Take photo</span></label>
+            <label><input type="radio" name="motionAction" value="video"><span>Record video</span></label>
+          </div>
+        </div>
+        <div class="row stack">
+          <label class="row-label" for="sensitivity">Sensitivity</label>
+          <div>
+            <input class="range" type="range" id="sensitivity" min="0" max="100" value="50">
+            <div class="range-ends" aria-hidden="true"><span>Large movement</span><span>Small movement</span></div>
+          </div>
+        </div>
+      </div>
+      <label class="row">
+        <span class="row-text"><span class="row-label">Voice commands</span><span class="row-hint">Say “photo”, “record”, “pause” or “stop”. On some phones this mutes the sound in videos.</span></span>
+        <input class="switch" type="checkbox" role="switch" id="voiceSwitch">
+      </label>
+    </section>
+
+    <section class="group" id="displayGroup">
+      <h3>Display</h3>
+      <label class="row">
+        <span class="row-label">Full screen</span>
+        <input class="switch" type="checkbox" role="switch" id="fullscreenSwitch">
+      </label>
+    </section>
+  </div>
+</section>
+
+<section class="review" id="review" role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
+  <div class="review-head">
+    <button class="icon-btn" id="reviewClose" type="button" aria-label="Back to camera">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <h2 id="reviewTitle">Captures</h2>
+    <span class="review-count" id="reviewCount"></span>
+    <button class="btn btn-quiet" id="saveAllBtn" type="button" hidden>Save all</button>
+  </div>
+  <div class="review-list" id="reviewList"></div>
+  <div class="review-empty" id="reviewEmpty">
+    <p>Photos and videos you take appear here.</p>
+    <p class="row-hint">They’re kept until you close or reload this page, so save the ones you want to keep.</p>
+  </div>
+</section>
+
+<section class="viewer" id="viewer" role="dialog" aria-modal="true" aria-labelledby="viewerTitle" hidden>
+  <div class="viewer-bar">
+    <button class="icon-btn" id="viewerClose" type="button" aria-label="Close">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <h2 class="viewer-title" id="viewerTitle"></h2>
+    <div class="viewer-formats" id="viewerFormats" role="radiogroup" aria-label="Format"></div>
+  </div>
+  <div class="viewer-media" id="viewerMedia"></div>
+  <div class="viewer-actions">
+    <button class="btn btn-quiet" id="viewerDelete" type="button">Delete</button>
+    <button class="btn btn-primary" id="viewerSave" type="button">Save</button>
+  </div>
+</section>
+
+<script>
+(() => {
+'use strict';
+
+/* ───────── Elements ───────── */
+const $ = (id) => document.getElementById(id);
+const app = $('app'), stage = $('stage'), frame = $('frame'), video = $('video'), guides = $('guides');
+const vCanvas = $('vCanvas'), hCanvas = $('hCanvas');
+const shutterBtn = $('shutterBtn'), thumbBtn = $('thumbBtn'), thumbImg = $('thumbImg');
+const pauseBtn = $('pauseBtn'), flipBtn = $('flipBtn'), stillBtn = $('stillBtn');
+const torchBtn = $('torchBtn'), gridBtn = $('gridBtn'), settingsBtn = $('settingsBtn');
+const countdownEl = $('countdown'), shade = $('shade'), zoomChips = $('zoomChips'), stageStatus = $('stageStatus');
+const notice = $('notice'), noticeTitle = $('noticeTitle'), noticeBody = $('noticeBody'), noticeAction = $('noticeAction');
+const toastEl = $('toast'), scrim = $('scrim');
+const settings = $('settings'), settingsClose = $('settingsClose');
+const review = $('review'), reviewClose = $('reviewClose'), reviewList = $('reviewList');
+const reviewEmpty = $('reviewEmpty'), reviewCount = $('reviewCount'), saveAllBtn = $('saveAllBtn');
+const viewer = $('viewer'), viewerClose = $('viewerClose'), viewerTitle = $('viewerTitle');
+const viewerFormats = $('viewerFormats'), viewerMedia = $('viewerMedia'), viewerDelete = $('viewerDelete'), viewerSave = $('viewerSave');
+const formatButtons = [...document.querySelectorAll('#formatSwitch [data-format]')];
+const modeButtons = [...document.querySelectorAll('#modeSwitch [data-mode]')];
+const tallyTimes = [...document.querySelectorAll('.tally-time')];
+
+/* ───────── Constants ───────── */
+const isTouch = matchMedia('(pointer: coarse)').matches;
+const canShareFiles = isTouch && typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
+const SAVE_WORD = canShareFiles ? 'Save' : 'Download';
+const MAX_ZOOM = 4;
+
+// Camera is requested at 4:3 — the native sensor shape — which leaves the most
+// picture for both the 9:16 and the 16:9 crop.
+const QUALITY = {
+  '720':  { reqW: 1280, reqH: 960,  long: 1280, short: 720,  bps: 4000000 },
+  '1080': { reqW: 1920, reqH: 1440, long: 1920, short: 1080, bps: 6000000 },
+};
+const FORMAT = {
+  vertical:   { aspect: 9 / 16, label: 'Vertical',   ratio: '9:16', file: '9x16', color: '#ffb224' },
+  horizontal: { aspect: 16 / 9, label: 'Horizontal', ratio: '16:9', file: '16x9', color: '#6cc4ff' },
+};
+
+/* Colour matrices mirror the CSS filter functions, used when the browser
+   has no canvas `filter` support (Safari), so previews and files match. */
+function compose(A, B) { // apply A, then B
+  const a = A.m, b = B.m, m = new Array(9), o = new Array(3);
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) m[r * 3 + c] = b[r * 3] * a[c] + b[r * 3 + 1] * a[3 + c] + b[r * 3 + 2] * a[6 + c];
+    o[r] = b[r * 3] * A.o[0] + b[r * 3 + 1] * A.o[1] + b[r * 3 + 2] * A.o[2] + B.o[r];
+  }
+  return { m, o };
+}
+const MX = {
+  gray(a) { const s = 1 - a; return { m: [.2126 + .7874 * s, .7152 - .7152 * s, .0722 - .0722 * s, .2126 - .2126 * s, .7152 + .2848 * s, .0722 - .0722 * s, .2126 - .2126 * s, .7152 - .7152 * s, .0722 + .9278 * s], o: [0, 0, 0] }; },
+  sepia(a) { const s = 1 - a; return { m: [.393 + .607 * s, .769 - .769 * s, .189 - .189 * s, .349 - .349 * s, .686 + .314 * s, .168 - .168 * s, .272 - .272 * s, .534 - .534 * s, .131 + .869 * s], o: [0, 0, 0] }; },
+  saturate(s) { return { m: [.213 + .787 * s, .715 - .715 * s, .072 - .072 * s, .213 - .213 * s, .715 + .285 * s, .072 - .072 * s, .213 - .213 * s, .715 - .715 * s, .072 + .928 * s], o: [0, 0, 0] }; },
+  contrast(c) { const k = 127.5 * (1 - c); return { m: [c, 0, 0, 0, c, 0, 0, 0, c], o: [k, k, k] }; },
+};
+const FILTERS = {
+  natural: { css: 'none', matrix: null },
+  mono:    { css: 'grayscale(1) contrast(1.08)',  matrix: compose(MX.gray(1), MX.contrast(1.08)) },
+  warm:    { css: 'sepia(0.3) saturate(1.15)',    matrix: compose(MX.sepia(0.3), MX.saturate(1.15)) },
+  vivid:   { css: 'saturate(1.35) contrast(1.08)', matrix: compose(MX.saturate(1.35), MX.contrast(1.08)) },
+};
+
+const ICON = {
+  pause: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>',
+  resume: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="#ff3b2f"/></svg>',
+  play: '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></svg>',
+};
+
+/* ───────── Capability checks ───────── */
+const canRecord = typeof window.MediaRecorder === 'function' && typeof HTMLCanvasElement.prototype.captureStream === 'function';
+const canPause = canRecord && typeof MediaRecorder.prototype.pause === 'function';
+const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+const supportsCtxFilter = (() => {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 1;
+    const x = c.getContext('2d');
+    if (typeof x.filter !== 'string') return false;
+    x.filter = 'grayscale(1)'; x.fillStyle = '#f00'; x.fillRect(0, 0, 1, 1);
+    const d = x.getImageData(0, 0, 1, 1).data;
+    return Math.abs(d[0] - d[1]) < 20;
+  } catch (_) { return false; }
+})();
+const MIME_CANDIDATES = !canRecord ? [] : [
+  'video/mp4;codecs=avc1,mp4a.40.2',
+  'video/mp4;codecs=avc1.640028,mp4a.40.2',
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4',
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm',
+].filter((m) => { try { return MediaRecorder.isTypeSupported(m); } catch (_) { return false; } });
+
+/* ───────── State ───────── */
+const state = {
+  mode: 'photo', format: 'both', quality: '1080', timer: 0, filter: 'natural',
+  grid: false, noise: true, split: 0, autoDownload: !isTouch,
+  motion: false, motionAction: 'photo', motionSensitivity: 50, voice: false,
+  facing: isTouch ? 'environment' : 'user', zoom: 1, torch: false,
+};
+let stream = null, videoTrack = null, audioTrack = null;
+let ready = false, startToken = 0, multiCam = isTouch, backgroundNote = '';
+const shots = [];
+
+const ctxOpts = supportsCtxFilter ? { alpha: false } : { alpha: false, willReadFrequently: true };
+const vCtx = vCanvas.getContext('2d', ctxOpts);
+const hCtx = hCanvas.getContext('2d', ctxOpts);
+
+function sizeOutputs() {
+  const q = QUALITY[state.quality];
+  vCanvas.width = q.short; vCanvas.height = q.long;
+  hCanvas.width = q.long;  hCanvas.height = q.short;
+}
+
+/* ───────── Helpers ───────── */
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const even = (n) => Math.max(2, Math.round(n / 2) * 2);
+const pad = (n) => String(n).padStart(2, '0');
+const haptic = () => { try { navigator.vibrate && navigator.vibrate(8); } catch (_) {} };
+const toBlob = (canvas, type, q) => new Promise((res) => { try { canvas.toBlob(res, type, q); } catch (_) { res(null); } });
+function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+function fmtClock(ms) { const t = Math.max(0, Math.floor(ms / 1000)); const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60; return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`; }
+function fmtDuration(ms) { const t = Math.max(1, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${pad(t % 60)}`; }
+function fmtTime(d) { return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+function fileStamp(d) { return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`; }
+const fmtZoom = (z) => `${(Math.round(z * 10) / 10).toString().replace(/\.0$/, '')}×`;
+
+let toastTimer = null;
+function toast(msg, ms = 3200) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
+}
+
+function cropRect(w, h, zoom, aspect) {
+  const zw = w / zoom, zh = h / zoom;
+  let cw, ch;
+  if (zw / zh > aspect) { ch = zh; cw = ch * aspect; } else { cw = zw; ch = cw / aspect; }
+  return { x: (w - cw) / 2, y: (h - ch) / 2, w: cw, h: ch };
+}
+function activeFormats() {
+  return state.format === 'both' ? ['vertical', 'horizontal'] : [state.format];
+}
+
+/* ───────── Camera ───────── */
+const NOTICES = {
+  insecure:    { title: 'Camera needs a secure connection', body: 'Browsers only allow the camera on https:// pages or localhost. Open this page from a secure address.', action: null },
+  unsupported: { title: 'This browser can’t open the camera', body: 'Use a current version of Safari, Chrome, Edge or Firefox.', action: null },
+  denied:      { title: 'Camera access is blocked', body: 'Allow camera and microphone for this site in your browser’s site settings, then try again.', action: 'Try again' },
+  notfound:    { title: 'No camera found', body: 'Connect a camera, or check that it isn’t turned off in system settings, then try again.', action: 'Try again' },
+  busy:        { title: 'Camera is in use', body: 'Another app or tab is using the camera. Close it, then try again.', action: 'Try again' },
+  tap:         { title: 'Camera is ready', body: 'Your browser needs a tap before it shows the live picture.', action: 'Start camera' },
+  nopicture:   { title: 'No picture from the camera', body: 'The camera connected but isn’t sending video. Try again or switch cameras.', action: 'Try again' },
+  generic:     { title: 'Camera didn’t start', body: 'Something interrupted the camera. Try again.', action: 'Try again' },
+};
+let noticeKind = '';
+function showNotice(kind) {
+  const n = NOTICES[kind] || NOTICES.generic;
+  noticeKind = kind;
+  noticeTitle.textContent = n.title;
+  noticeBody.textContent = n.body;
+  noticeAction.hidden = !n.action;
+  noticeAction.textContent = n.action || '';
+  notice.hidden = false;
+  stageStatus.hidden = true;
+  setReady(false);
+}
+function hideNotice() { notice.hidden = true; noticeKind = ''; }
+
+function errorKind(err) {
+  switch (err && err.name) {
+    case 'NotAllowedError': case 'PermissionDeniedError': case 'SecurityError': return 'denied';
+    case 'NotFoundError': case 'DevicesNotFoundError': case 'OverconstrainedError': return 'notfound';
+    case 'NotReadableError': case 'TrackStartError': case 'AbortError': return 'busy';
+    default: return 'generic';
+  }
+}
+
+async function acquire(videoC, audioC) {
+  const attempts = [
+    { video: videoC, audio: audioC },                              // ideal
+    { video: videoC, audio: false },                               // mic missing or blocked
+    { video: { facingMode: { ideal: state.facing } }, audio: false }, // constraints rejected
+  ];
+  let lastErr;
+  for (const c of attempts) {
+    try { return await navigator.mediaDevices.getUserMedia(c); }
+    catch (err) {
+      lastErr = err;
+      if ((err.name === 'NotAllowedError' && c.audio === false) || err.name === 'SecurityError') break;
+    }
+  }
+  throw lastErr;
+}
+
+function waitForVideo(timeout = 4000) {
+  return new Promise((resolve) => {
+    if (video.videoWidth) return resolve();
+    const done = () => { video.removeEventListener('loadedmetadata', done); video.removeEventListener('resize', done); clearTimeout(t); resolve(); };
+    video.addEventListener('loadedmetadata', done);
+    video.addEventListener('resize', done);
+    const t = setTimeout(done, timeout);
+  });
+}
+
+function stopStream() {
+  if (videoTrack) videoTrack.removeEventListener('ended', onTrackEnded);
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = videoTrack = audioTrack = null;
+  video.srcObject = null;
+}
+
+async function startCamera() {
+  if (!window.isSecureContext) return showNotice('insecure');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return showNotice('unsupported');
+
+  const token = ++startToken;
+  setReady(false);
+  hideNotice();
+  stopStream();
+  const statusTimer = setTimeout(() => { if (token === startToken) stageStatus.hidden = false; }, 450);
+  const finishStatus = () => { clearTimeout(statusTimer); stageStatus.hidden = true; };
+
+  const q = QUALITY[state.quality];
+  const videoC = { facingMode: { ideal: state.facing }, width: { ideal: q.reqW }, height: { ideal: q.reqH }, frameRate: { ideal: 30 } };
+  const audioC = { noiseSuppression: state.noise, autoGainControl: true };
+
+  let s;
+  try { s = await acquire(videoC, audioC); }
+  catch (err) { finishStatus(); if (token === startToken) showNotice(errorKind(err)); return; }
+  if (token !== startToken) { s.getTracks().forEach((t) => t.stop()); return; }
+
+  stream = s;
+  videoTrack = stream.getVideoTracks()[0] || null;
+  audioTrack = stream.getAudioTracks()[0] || null;
+  if (videoTrack) videoTrack.addEventListener('ended', onTrackEnded);
+
+  video.muted = true;
+  video.srcObject = stream;
+  try { await video.play(); }
+  catch (err) {
+    if (err && err.name === 'NotAllowedError') { finishStatus(); showNotice('tap'); return; }
+  }
+  await waitForVideo();
+  finishStatus();
+  if (token !== startToken) return;
+  if (!video.videoWidth) { showNotice('nopicture'); return; }
+  onCameraReady();
+}
+
+function onCameraReady() {
+  hideNotice();
+  applyMirror();
+  applyLookPreview();
+  layoutFrame();
+  setupTorch();
+  setReady(true);
+  if (!audioTrack) toast('Microphone is unavailable, so videos will record without sound.');
+  refreshCameraCount();
+}
+
+function onTrackEnded() {
+  if (rec.active) stopRecording('The camera disconnected. Your clip is in Captures.');
+  setReady(false);
+  if (!document.hidden) startCamera();
+}
+
+async function refreshCameraCount() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    multiCam = devices.filter((d) => d.kind === 'videoinput').length > 1;
+  } catch (_) {}
+  updateUI();
+}
+
+function setReady(v) { ready = v; updateUI(); }
+
+function applyMirror() {
+  let facing = '';
+  try { facing = (videoTrack && videoTrack.getSettings && videoTrack.getSettings().facingMode) || ''; } catch (_) {}
+  const front = facing ? facing === 'user' : state.facing === 'user';
+  frame.classList.toggle('mirrored', front); // preview only; saved files are never mirrored
+}
+function applyLookPreview() {
+  const css = FILTERS[state.filter].css;
+  video.style.filter = css === 'none' ? '' : css;
+}
+
+function setupTorch() {
+  state.torch = false;
+  torchBtn.setAttribute('aria-pressed', 'false');
+  let caps = {};
+  try { caps = (videoTrack && videoTrack.getCapabilities && videoTrack.getCapabilities()) || {}; } catch (_) {}
+  torchBtn.hidden = !caps.torch;
+}
+async function toggleTorch() {
+  if (!videoTrack) return;
+  const next = !state.torch;
+  try {
+    await videoTrack.applyConstraints({ advanced: [{ torch: next }] });
+    state.torch = next;
+    torchBtn.setAttribute('aria-pressed', String(next));
+  } catch (_) { toast('Flashlight isn’t available for this camera.'); }
+}
+
+async function setNoise(on) {
+  state.noise = on;
+  if (!audioTrack) return;
+  try { await audioTrack.applyConstraints({ noiseSuppression: on }); }
+  catch (_) { if (!rec.active) startCamera(); }
+}
+
+/* ───────── Viewfinder layout & frame guides ───────── */
+function layoutFrame() {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return;
+  const r = stage.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const s = Math.min(r.width / vw, r.height / vh);
+  const w = Math.floor(vw * s), h = Math.floor(vh * s);
+  frame.style.width = `${w}px`;
+  frame.style.height = `${h}px`;
+  stage.style.setProperty('--gap-x', `${Math.max(0, (r.width - w) / 2)}px`);
+  stage.style.setProperty('--gap-y', `${Math.max(0, (r.height - h) / 2)}px`);
+  drawGuides(w, h);
+}
+
+function drawGuides(fw = frame.clientWidth, fh = frame.clientHeight) {
+  if (!fw || !fh) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const W = Math.round(fw * dpr), H = Math.round(fh * dpr);
+  if (guides.width !== W || guides.height !== H) { guides.width = W; guides.height = H; }
+  const g = guides.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, fw, fh);
+
+  const showV = state.format !== 'horizontal', showH = state.format !== 'vertical';
+  const V = cropRect(fw, fh, 1, FORMAT.vertical.aspect);
+  const Hz = cropRect(fw, fh, 1, FORMAT.horizontal.aspect);
+
+  // Dim everything that won't be in any saved file
+  g.fillStyle = state.format === 'both' ? 'rgba(0,0,0,0.58)' : 'rgba(0,0,0,0.72)';
+  g.fillRect(0, 0, fw, fh);
+  g.globalCompositeOperation = 'destination-out';
+  g.fillStyle = '#000';
+  if (showV) g.fillRect(V.x, V.y, V.w, V.h);
+  if (showH) g.fillRect(Hz.x, Hz.y, Hz.w, Hz.h);
+  g.globalCompositeOperation = 'source-over';
+
+  if (state.grid) {
+    let box = showV ? V : Hz;
+    if (showV && showH) {
+      const x = Math.max(V.x, Hz.x), y = Math.max(V.y, Hz.y);
+      box = { x, y, w: Math.min(V.x + V.w, Hz.x + Hz.w) - x, h: Math.min(V.y + V.h, Hz.y + Hz.h) - y };
+    }
+    g.strokeStyle = 'rgba(255,255,255,0.4)';
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let i = 1; i < 3; i++) {
+      const x = Math.round(box.x + (box.w * i) / 3) + 0.5;
+      const y = Math.round(box.y + (box.h * i) / 3) + 0.5;
+      g.moveTo(x, box.y); g.lineTo(x, box.y + box.h);
+      g.moveTo(box.x, y); g.lineTo(box.x + box.w, y);
+    }
+    g.stroke();
+  }
+
+  g.lineWidth = 1.5;
+  if (showV) { g.strokeStyle = FORMAT.vertical.color; g.strokeRect(V.x + 0.75, V.y + 0.75, V.w - 1.5, V.h - 1.5); }
+  if (showH) { g.strokeStyle = FORMAT.horizontal.color; g.strokeRect(Hz.x + 0.75, Hz.y + 0.75, Hz.w - 1.5, Hz.h - 1.5); }
+  if (fw >= 180) {
+    if (showV) drawTag(g, '9:16', V.x + 8, V.y + 8, FORMAT.vertical.color);
+    if (showH) drawTag(g, '16:9', Hz.x + 8, Hz.y + 8, FORMAT.horizontal.color);
+  }
+}
+
+function drawTag(g, text, x, y, color) {
+  g.font = '600 12px "Barlow Semi Condensed", Barlow, system-ui, sans-serif';
+  const w = Math.ceil(g.measureText(text).width) + 10, h = 18, r = 3;
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+  g.fillStyle = color; g.fill();
+  g.fillStyle = '#000'; g.textBaseline = 'middle'; g.textAlign = 'left';
+  g.fillText(text, x + 5, y + h / 2 + 1);
+}
+
+/* ───────── Zoom ───────── */
+function setZoom(z) {
+  z = Math.round(Math.min(MAX_ZOOM, Math.max(1, z)) * 20) / 20;
+  state.zoom = z;
+  frame.style.setProperty('--zoom', z);
+  const chips = [...zoomChips.querySelectorAll('button')];
+  let active = chips[0];
+  chips.forEach((b) => { if (z >= +b.dataset.zoom - 0.001) active = b; });
+  chips.forEach((b) => {
+    const on = b === active;
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? fmtZoom(z) : fmtZoom(+b.dataset.zoom);
+    b.setAttribute('aria-label', `Zoom ${b.dataset.zoom} times`);
+  });
+}
+
+const touches = new Map();
+let pinch = null;
+function spread() { const [a, b] = [...touches.values()]; return Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)); }
+stage.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch') return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (touches.size === 2 && ready) { pinch = { d: spread(), z: state.zoom }; frame.classList.add('pinching'); }
+});
+stage.addEventListener('pointermove', (e) => {
+  if (!touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && touches.size >= 2) setZoom(pinch.z * (spread() / pinch.d));
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => stage.addEventListener(type, (e) => {
+  touches.delete(e.pointerId);
+  if (touches.size < 2 && pinch) { pinch = null; frame.classList.remove('pinching'); }
+}));
+let wheelTimer = null;
+stage.addEventListener('wheel', (e) => {
+  if (!ready) return;
+  e.preventDefault();
+  frame.classList.add('pinching');
+  setZoom(state.zoom * Math.exp(-e.deltaY * 0.0015));
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(() => frame.classList.remove('pinching'), 160);
+}, { passive: false });
+zoomChips.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-zoom]');
+  if (b) setZoom(+b.dataset.zoom);
+});
+
+/* ───────── Rendering crops ───────── */
+function applyMatrix(ctx, w, h, M) {
+  const img = ctx.getImageData(0, 0, w, h), d = img.data, m = M.m, o = M.o;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    d[i]     = m[0] * r + m[1] * g + m[2] * b + o[0];
+    d[i + 1] = m[3] * r + m[4] * g + m[5] * b + o[1];
+    d[i + 2] = m[6] * r + m[7] * g + m[8] * b + o[2];
+  }
+  ctx.putImageData(img, 0, 0);
+}
+function renderCrop(ctx, w, h, crop) {
+  const f = FILTERS[state.filter];
+  if (supportsCtxFilter) ctx.filter = f.css;
+  ctx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, w, h);
+  if (supportsCtxFilter) ctx.filter = 'none';
+  else if (f.matrix) applyMatrix(ctx, w, h, f.matrix);
+}
+async function makeThumb(src) {
+  const s = 360 / Math.max(src.width, src.height);
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(src.width * s));
+  c.height = Math.max(1, Math.round(src.height * s));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return toBlob(c, 'image/jpeg', 0.8);
+}
+function makeItem({ format, blob, thumb, width, height, createdAt, ext, part }) {
+  const suffix = part ? `_part${part}` : '';
+  return {
+    id: uid(), format, blob, width, height,
+    url: URL.createObjectURL(blob),
+    thumbUrl: thumb ? URL.createObjectURL(thumb) : '',
+    name: `DualView_${fileStamp(createdAt)}${suffix}_${FORMAT[format].file}.${ext}`,
+  };
+}
+
+/* ───────── Photo ───────── */
+async function takePhoto() {
+  if (!ready) return;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return;
+  shade.classList.remove('go'); void shade.offsetWidth; shade.classList.add('go');
+  haptic();
+
+  const q = QUALITY[state.quality];
+  const createdAt = new Date();
+  // Draw every format from the same video frame first, then encode.
+  const renders = activeFormats().map((fmt) => {
+    const aspect = FORMAT[fmt].aspect;
+    const crop = cropRect(vw, vh, state.zoom, aspect);
+    const baseW = aspect < 1 ? q.short : q.long;
+    const baseH = aspect < 1 ? q.long : q.short;
+    const scale = Math.min(Math.max(crop.w / baseW, 1), 4096 / Math.max(baseW, baseH));
+    const w = even(baseW * scale), h = even(baseH * scale);
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    renderCrop(c.getContext('2d', supportsCtxFilter ? undefined : { willReadFrequently: true }), w, h, crop);
+    return { fmt, canvas: c, w, h };
+  });
+
+  const items = [];
+  for (const r of renders) {
+    const blob = await toBlob(r.canvas, 'image/jpeg', 0.92);
+    if (!blob) continue;
+    const thumb = await makeThumb(r.canvas);
+    items.push(makeItem({ format: r.fmt, blob, thumb, width: r.w, height: r.h, createdAt, ext: 'jpg' }));
+    r.canvas.width = r.canvas.height = 0;
+  }
+  if (!items.length) { toast('The photo couldn’t be saved. Try again.'); return; }
+  addShot({ id: uid(), kind: 'photo', createdAt, items });
+}
+
+/* ───────── Video ───────── */
+const rec = { active: false, paused: false, startedAt: 0, pausedAt: 0, pausedTotal: 0, formats: [], seg: null, part: 0, tick: null, byMotion: false, splitMs: 0 };
+
+function elapsedMs() {
+  if (!rec.startedAt) return 0;
+  const now = rec.paused ? rec.pausedAt : performance.now();
+  return now - rec.startedAt - rec.pausedTotal;
+}
+
+function createRecorder(ms, bps) {
+  let lastErr;
+  for (const mime of [...MIME_CANDIDATES, '']) {
+    try {
+      const opts = { videoBitsPerSecond: bps };
+      if (ms.getAudioTracks().length) opts.audioBitsPerSecond = 128000;
+      if (mime) opts.mimeType = mime;
+      const r = new MediaRecorder(ms, opts);
+      r.start(1000);
+      r._mime = mime;
+      return r;
+    } catch (err) { lastErr = err; }
+  }
+  throw lastErr || new Error('MediaRecorder could not start');
+}
+
+function drawOutputs() {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return;
+  for (const fmt of rec.formats) {
+    const canvas = fmt === 'vertical' ? vCanvas : hCanvas;
+    renderCrop(fmt === 'vertical' ? vCtx : hCtx, canvas.width, canvas.height, cropRect(vw, vh, state.zoom, FORMAT[fmt].aspect));
+  }
+}
+
+let loopRunning = false;
+function startRenderLoop() {
+  if (loopRunning) return;
+  loopRunning = true;
+  const next = () => (hasRVFC ? video.requestVideoFrameCallback(step) : requestAnimationFrame(step));
+  const step = () => {
+    if (!rec.active) { loopRunning = false; return; }
+    drawOutputs();
+    next();
+  };
+  next();
+}
+
+function beginSegment() {
+  rec.part += 1;
+  const seg = { id: uid(), part: rec.part, splitting: rec.splitMs > 0, createdAt: new Date(), startMs: elapsedMs(), endMs: 0, recorders: [], parts: [], pending: 0, thumbs: {} };
+  const q = QUALITY[state.quality];
+  const made = [];
+  try {
+    for (const fmt of rec.formats) {
+      const canvas = fmt === 'vertical' ? vCanvas : hCanvas;
+      seg.thumbs[fmt] = makeThumb(canvas);
+      const cs = canvas.captureStream(30);
+      if (audioTrack && audioTrack.readyState === 'live') cs.addTrack(audioTrack.clone());
+      const r = createRecorder(cs, q.bps);
+      made.push({ r, cs });
+      const chunks = [];
+      r.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      r.onstop = () => {
+        cs.getTracks().forEach((t) => t.stop());
+        const type = r.mimeType || r._mime || 'video/webm';
+        seg.parts.push({ format: fmt, blob: new Blob(chunks, { type }), type, width: canvas.width, height: canvas.height });
+        seg.pending -= 1;
+        if (seg.pending === 0) finishSegment(seg);
+      };
+      r.onerror = (e) => console.error('Recorder error', e);
+      seg.recorders.push(r);
+      seg.pending += 1;
+    }
+  } catch (err) {
+    made.forEach(({ r, cs }) => { r.onstop = null; try { r.stop(); } catch (_) {} cs.getTracks().forEach((t) => t.stop()); });
+    rec.part -= 1;
+    throw err;
+  }
+  rec.seg = seg;
+}
+
+function endSegment(seg) {
+  seg.endMs = elapsedMs();
+  seg.recorders.forEach((r) => { if (r.state !== 'inactive') { try { r.stop(); } catch (_) {} } });
+}
+
+async function finishSegment(seg) {
+  const parts = seg.parts.filter((p) => p.blob.size > 1024).sort((a, b) => (a.format === b.format ? 0 : a.format === 'vertical' ? -1 : 1));
+  if (!parts.length) { toast('That clip was too short to save.'); return; }
+  const items = [];
+  for (const p of parts) {
+    const thumb = await Promise.resolve(seg.thumbs[p.format]).catch(() => null);
+    const ext = p.type.includes('mp4') ? 'mp4' : 'webm';
+    items.push(makeItem({ format: p.format, blob: p.blob, thumb, width: p.width, height: p.height, createdAt: seg.createdAt, ext, part: seg.splitting ? seg.part : 0 }));
+  }
+  addShot({ id: seg.id, kind: 'video', createdAt: seg.createdAt, duration: Math.max(0, seg.endMs - seg.startMs), items });
+}
+
+function startRecording(trigger) {
+  if (!ready || rec.active) return;
+  if (!canRecord) { toast('Video recording isn’t supported in this browser.'); return; }
+  rec.formats = activeFormats();
+  rec.active = true; rec.paused = false; rec.pausedTotal = 0; rec.part = 0;
+  rec.startedAt = performance.now();
+  rec.byMotion = trigger === 'motion';
+  rec.splitMs = state.split * 60000;
+  drawOutputs();
+  try { beginSegment(); }
+  catch (err) {
+    console.error(err);
+    rec.active = false; rec.startedAt = 0;
+    toast('Recording couldn’t start on this device. Try 720p in Settings.');
+    updateUI();
+    return;
+  }
+  startRenderLoop();
+  rec.tick = setInterval(onRecTick, 250);
+  onRecTick();
+  requestWakeLock();
+  haptic();
+  updateUI();
+}
+
+function stopRecording(message) {
+  if (!rec.active) return;
+  if (rec.seg) endSegment(rec.seg);
+  rec.seg = null; rec.active = false; rec.paused = false; rec.byMotion = false;
+  clearInterval(rec.tick); rec.tick = null;
+  releaseWakeLock();
+  haptic();
+  if (message) toast(message, 4500);
+  updateUI();
+}
+
+function togglePause() {
+  if (!rec.active || !rec.seg || !canPause) return;
+  if (rec.paused) {
+    rec.seg.recorders.forEach((r) => { if (r.state === 'paused') r.resume(); });
+    rec.pausedTotal += performance.now() - rec.pausedAt;
+    rec.paused = false;
+  } else {
+    rec.seg.recorders.forEach((r) => { if (r.state === 'recording') r.pause(); });
+    rec.pausedAt = performance.now();
+    rec.paused = true;
+  }
+  onRecTick();
+  haptic();
+  updateUI();
+}
+
+function onRecTick() {
+  const ms = elapsedMs();
+  const label = fmtClock(ms);
+  tallyTimes.forEach((t) => { t.textContent = label; });
+  if (rec.active && rec.splitMs && !rec.paused && rec.seg && ms - rec.seg.startMs >= rec.splitMs) {
+    const old = rec.seg;
+    try { beginSegment(); } catch (_) { stopRecording('Recording stopped: a new part couldn’t start.'); return; }
+    endSegment(old);
+  }
+}
+
+let wakeLock = null;
+async function requestWakeLock() {
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (_) {}
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+
+/* ───────── Self-timer ───────── */
+let countdown = null;
+function withTimer(action) {
+  if (!state.timer) { action(); return; }
+  let n = state.timer;
+  const show = () => { countdownEl.textContent = n; countdownEl.classList.remove('tick'); void countdownEl.offsetWidth; countdownEl.classList.add('tick'); };
+  countdownEl.hidden = false;
+  show();
+  countdown = setInterval(() => {
+    n -= 1;
+    if (n <= 0) { cancelCountdown(); action(); } else show();
+  }, 1000);
+  updateUI();
+}
+function cancelCountdown() {
+  if (!countdown) return;
+  clearInterval(countdown); countdown = null;
+  countdownEl.hidden = true;
+  updateUI();
+}
+
+/* ───────── Motion trigger ───────── */
+const motion = { timer: null, prev: null, lastTrigger: 0, lastSeen: 0 };
+const mCanvas = document.createElement('canvas');
+mCanvas.width = 64; mCanvas.height = 48;
+const mCtx = mCanvas.getContext('2d', { willReadFrequently: true });
+function startMotion() { stopMotion(); motion.lastSeen = performance.now(); motion.timer = setInterval(motionTick, 200); }
+function stopMotion() { clearInterval(motion.timer); motion.timer = null; motion.prev = null; }
+function motionTick() {
+  if (!ready || document.hidden || !video.videoWidth) return;
+  mCtx.drawImage(video, 0, 0, 64, 48); // the whole frame, downscaled
+  const d = mCtx.getImageData(0, 0, 64, 48).data;
+  const lum = new Uint8Array(64 * 48);
+  for (let i = 0, p = 0; p < lum.length; i += 4, p++) lum[p] = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8;
+  const prev = motion.prev;
+  motion.prev = lum;
+  if (!prev) return;
+  let changed = 0;
+  for (let p = 0; p < lum.length; p++) if (Math.abs(lum[p] - prev[p]) > 22) changed++;
+  const threshold = 0.2 * Math.pow(0.025, state.motionSensitivity / 100); // 20% → 0.5% of pixels
+  const now = performance.now();
+  if (changed / lum.length > threshold) {
+    motion.lastSeen = now;
+    if (!rec.active && !countdown && now - motion.lastTrigger > 4000) {
+      motion.lastTrigger = now;
+      if (state.motionAction === 'video' && canRecord) {
+        setMode('video');
+        startRecording('motion');
+        toast('Motion detected. Recording.');
+      } else {
+        takePhoto();
+        toast('Motion detected. Photo taken.');
+      }
+    }
+  } else if (rec.active && rec.byMotion && !rec.paused && now - motion.lastSeen > 15000) {
+    stopRecording('Stopped after 15 seconds without motion.');
+  }
+}
+
+/* ───────── Voice commands ───────── */
+let recognition = null;
+function setVoice(on) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const sw = $('voiceSwitch');
+  if (on && !SR) { sw.checked = false; toast('Voice commands aren’t available in this browser.'); return; }
+  state.voice = on;
+  if (!on) {
+    if (recognition) { const r = recognition; recognition = null; r.onend = null; try { r.abort(); } catch (_) {} }
+    return;
+  }
+  const r = new SR();
+  recognition = r;
+  r.lang = 'en-US';
+  r.continuous = true;
+  r.interimResults = false;
+  r.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) handleVoice(e.results[i][0].transcript.toLowerCase());
+    }
+  };
+  r.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      state.voice = false; sw.checked = false; recognition = null;
+      toast('Voice commands need microphone permission.');
+    }
+  };
+  r.onend = () => { if (state.voice && recognition === r) setTimeout(() => { try { r.start(); } catch (_) {} }, 250); };
+  try { r.start(); toast('Listening for “photo”, “record”, “pause” and “stop”.'); } catch (_) {}
+}
+function handleVoice(t) {
+  if (/\b(stop|cut)\b/.test(t)) { if (rec.active) stopRecording(); else cancelCountdown(); }
+  else if (/\b(pause|resume|continue)\b/.test(t)) { togglePause(); }
+  else if (/\b(record|action|video)\b/.test(t)) { if (!rec.active && !countdown) { setMode('video'); withTimer(() => startRecording('voice')); } }
+  else if (/\b(photo|picture|capture|cheese)\b/.test(t)) { if (rec.active) takePhoto(); else if (!countdown) withTimer(takePhoto); }
+}
+
+/* ───────── Captures, saving ───────── */
+function download(item) {
+  const a = document.createElement('a');
+  a.href = item.url; a.download = item.name; a.rel = 'noopener';
+  document.body.append(a); a.click(); a.remove();
+}
+async function saveItems(items) {
+  if (!items.length) return;
+  if (canShareFiles) {
+    // Must run synchronously inside the tap so iOS/Android allow the share sheet.
+    const files = items.map((it) => new File([it.blob], it.name, { type: (it.blob.type || '').split(';')[0] }));
+    let ok = false;
+    try { ok = navigator.canShare({ files }); } catch (_) {}
+    if (ok) {
+      try { await navigator.share({ files }); return; }
+      catch (err) { if (err && err.name === 'AbortError') return; }
+    }
+  }
+  items.forEach((it, i) => setTimeout(() => download(it), i * 300));
+}
+
+function addShot(shot) {
+  shots.unshift(shot);
+  renderThumb(true);
+  if (review.classList.contains('open')) renderReview();
+  if (state.autoDownload) shot.items.forEach((it, i) => setTimeout(() => download(it), i * 400));
+}
+function revokeItem(it) { URL.revokeObjectURL(it.url); if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl); }
+
+function renderThumb(pop) {
+  const it = shots[0] && shots[0].items[0];
+  thumbBtn.classList.toggle('empty', !it);
+  if (it && it.thumbUrl) thumbImg.src = it.thumbUrl; else thumbImg.removeAttribute('src');
+  thumbBtn.setAttribute('aria-label', shots.length ? `Open captures (${shots.length})` : 'Open captures');
+  if (pop) { thumbBtn.classList.remove('pop'); void thumbBtn.offsetWidth; thumbBtn.classList.add('pop'); }
+}
+
+function renderReview() {
+  reviewList.textContent = '';
+  reviewEmpty.hidden = shots.length > 0;
+  reviewList.hidden = shots.length === 0;
+  reviewCount.textContent = shots.length ? String(shots.length) : '';
+  saveAllBtn.hidden = shots.length < 2;
+  saveAllBtn.textContent = `${SAVE_WORD} all`;
+  const frag = document.createDocumentFragment();
+  for (const shot of shots) {
+    const art = el('article', 'shot');
+    const media = el('div', 'shot-media');
+    for (const it of shot.items) {
+      const tile = el('button', `tile tile-${it.format}`);
+      tile.type = 'button';
+      tile.setAttribute('aria-label', `View ${FORMAT[it.format].label.toLowerCase()} ${shot.kind}`);
+      if (it.thumbUrl) { const img = el('img'); img.src = it.thumbUrl; img.alt = ''; img.decoding = 'async'; tile.append(img); }
+      tile.append(el('span', 'tile-tag', FORMAT[it.format].ratio));
+      if (shot.kind === 'video' && it === shot.items[shot.items.length - 1]) { const dur = el('span', 'tile-dur'); dur.innerHTML = ICON.play; dur.append(fmtDuration(shot.duration)); tile.append(dur); }
+      tile.addEventListener('click', () => openViewer(shot.id, it.id));
+      media.append(tile);
+    }
+    const meta = el('div', 'shot-meta');
+    const info = el('div', 'shot-info');
+    info.append(el('span', 'shot-kind', shot.kind === 'photo' ? 'Photo' : 'Video'), el('span', 'shot-time', fmtTime(shot.createdAt)));
+    const save = el('button', 'btn btn-quiet', shot.items.length > 1 ? `${SAVE_WORD} both` : SAVE_WORD);
+    save.type = 'button';
+    save.addEventListener('click', () => saveItems(shot.items));
+    meta.append(info, save);
+    art.append(media, meta);
+    frag.append(art);
+  }
+  reviewList.append(frag);
+}
+
+let viewing = null;
+function openViewer(shotId, itemId) {
+  const shot = shots.find((s) => s.id === shotId);
+  if (!shot) return;
+  const item = shot.items.find((i) => i.id === itemId) || shot.items[0];
+  viewing = { shotId, itemId: item.id };
+  const old = viewerMedia.querySelector('video');
+  if (old) old.pause();
+  viewerMedia.textContent = '';
+  let node;
+  if (shot.kind === 'photo') {
+    node = el('img'); node.src = item.url; node.alt = `${FORMAT[item.format].label} photo`;
+  } else {
+    node = el('video'); node.src = item.url; node.controls = true; node.playsInline = true;
+    node.setAttribute('playsinline', ''); node.preload = 'metadata';
+    if (item.thumbUrl) node.poster = item.thumbUrl;
+  }
+  viewerMedia.append(node);
+  viewerTitle.textContent = shot.items.length > 1 ? `${item.width} × ${item.height}` : `${FORMAT[item.format].label}, ${item.width} × ${item.height}`;
+  viewerFormats.textContent = '';
+  viewerFormats.hidden = shot.items.length < 2;
+  shot.items.forEach((it) => {
+    const b = el('button', null, FORMAT[it.format].ratio);
+    b.type = 'button'; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(it.id === item.id));
+    b.addEventListener('click', () => openViewer(shot.id, it.id));
+    viewerFormats.append(b);
+  });
+  viewerSave.textContent = SAVE_WORD;
+  if (viewer.hidden) { viewer.hidden = false; viewerClose.focus(); }
+}
+function closeViewer() {
+  const v = viewerMedia.querySelector('video');
+  if (v) v.pause();
+  viewerMedia.textContent = '';
+  viewer.hidden = true;
+  viewing = null;
+}
+
+/* ───────── Panels ───────── */
+function openSettings() { settings.classList.add('open'); settings.inert = false; scrim.classList.add('show'); settingsClose.focus(); }
+function closeSettings() { settings.classList.remove('open'); settings.inert = true; scrim.classList.remove('show'); settingsBtn.focus({ preventScroll: true }); }
+function openReview() { renderReview(); review.classList.add('open'); review.inert = false; reviewClose.focus(); }
+function closeReview() { review.classList.remove('open'); review.inert = true; thumbBtn.focus({ preventScroll: true }); }
+
+/* ───────── Mode & format ───────── */
+function setMode(mode) {
+  if (rec.active || countdown || state.mode === mode) return;
+  if (mode === 'video' && !canRecord) { toast('Video recording isn’t supported in this browser.'); return; }
+  state.mode = mode;
+  modeButtons.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === mode)));
+  updateUI();
+}
+function setFormat(format) {
+  if (rec.active || countdown) return;
+  state.format = format;
+  formatButtons.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.format === format)));
+  drawGuides();
+}
+
+/* ───────── UI state ───────── */
+function updateUI() {
+  app.dataset.rec = rec.active ? (rec.paused ? 'paused' : 'recording') : 'idle';
+  app.dataset.mode = state.mode;
+  app.classList.toggle('counting', !!countdown);
+  const busy = rec.active || !!countdown;
+  shutterBtn.disabled = !ready;
+  shutterBtn.setAttribute('aria-label', countdown ? 'Cancel timer' : state.mode === 'photo' ? 'Take photo' : rec.active ? 'Stop recording' : 'Start recording');
+  formatButtons.forEach((b) => { b.disabled = busy; });
+  modeButtons.forEach((b) => { b.disabled = busy; });
+  thumbBtn.hidden = rec.active;
+  pauseBtn.hidden = !rec.active || !canPause;
+  pauseBtn.setAttribute('aria-label', rec.paused ? 'Resume recording' : 'Pause recording');
+  pauseBtn.innerHTML = rec.paused ? ICON.resume : ICON.pause;
+  flipBtn.hidden = rec.active || !multiCam;
+  flipBtn.disabled = !ready || busy;
+  stillBtn.hidden = !rec.active;
+  zoomChips.hidden = !ready;
+  document.querySelectorAll('input[name="quality"], input[name="split"]').forEach((i) => { i.disabled = rec.active; });
+}
+
+/* ───────── Events ───────── */
+shutterBtn.addEventListener('click', () => {
+  if (countdown) { cancelCountdown(); return; }
+  if (state.mode === 'photo') withTimer(takePhoto);
+  else if (rec.active) stopRecording();
+  else withTimer(() => startRecording('user'));
+});
+stillBtn.addEventListener('click', takePhoto);
+pauseBtn.addEventListener('click', togglePause);
+flipBtn.addEventListener('click', () => {
+  if (rec.active || countdown) return;
+  state.facing = state.facing === 'user' ? 'environment' : 'user';
+  setZoom(1);
+  startCamera();
+});
+torchBtn.addEventListener('click', toggleTorch);
+gridBtn.addEventListener('click', () => {
+  state.grid = !state.grid;
+  gridBtn.setAttribute('aria-pressed', String(state.grid));
+  drawGuides();
+});
+formatButtons.forEach((b) => b.addEventListener('click', () => setFormat(b.dataset.format)));
+modeButtons.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+settingsBtn.addEventListener('click', openSettings);
+settingsClose.addEventListener('click', closeSettings);
+scrim.addEventListener('click', closeSettings);
+thumbBtn.addEventListener('click', openReview);
+reviewClose.addEventListener('click', closeReview);
+saveAllBtn.addEventListener('click', () => saveItems(shots.flatMap((s) => s.items)));
+viewerClose.addEventListener('click', closeViewer);
+viewerSave.addEventListener('click', () => {
+  const shot = viewing && shots.find((s) => s.id === viewing.shotId);
+  const item = shot && shot.items.find((i) => i.id === viewing.itemId);
+  if (item) saveItems([item]);
+});
+viewerDelete.addEventListener('click', () => {
+  const shot = viewing && shots.find((s) => s.id === viewing.shotId);
+  if (!shot) { closeViewer(); return; }
+  const idx = shot.items.findIndex((i) => i.id === viewing.itemId);
+  if (idx > -1) revokeItem(shot.items.splice(idx, 1)[0]);
+  if (!shot.items.length) { shots.splice(shots.indexOf(shot), 1); closeViewer(); }
+  else openViewer(shot.id, shot.items[0].id);
+  renderReview();
+  renderThumb(false);
+});
+noticeAction.addEventListener('click', async () => {
+  if (noticeKind === 'tap') {
+    try { await video.play(); await waitForVideo(); if (video.videoWidth) onCameraReady(); else showNotice('nopicture'); }
+    catch (_) { startCamera(); }
+  } else {
+    startCamera();
+  }
+});
+
+function bindRadios(name, fn) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+    input.addEventListener('change', () => { if (input.checked) fn(input.value); });
+  });
+}
+bindRadios('quality', (v) => { if (rec.active) return; state.quality = v; sizeOutputs(); startCamera(); });
+bindRadios('timer', (v) => { state.timer = +v; });
+bindRadios('filter', (v) => { state.filter = v; applyLookPreview(); });
+bindRadios('split', (v) => { state.split = +v; });
+bindRadios('motionAction', (v) => { state.motionAction = v; });
+$('noiseSwitch').addEventListener('change', (e) => setNoise(e.target.checked));
+$('autoSwitch').addEventListener('change', (e) => { state.autoDownload = e.target.checked; });
+$('motionSwitch').addEventListener('change', (e) => {
+  state.motion = e.target.checked;
+  $('motionOptions').hidden = !state.motion;
+  if (state.motion) startMotion(); else stopMotion();
+});
+$('sensitivity').addEventListener('input', (e) => { state.motionSensitivity = +e.target.value; });
+$('voiceSwitch').addEventListener('change', (e) => setVoice(e.target.checked));
+
+const fsSwitch = $('fullscreenSwitch');
+const fsSupported = !!(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+$('displayGroup').hidden = !fsSupported || matchMedia('(display-mode: standalone)').matches;
+fsSwitch.addEventListener('change', async () => {
+  try {
+    if (fsSwitch.checked) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    else if (document.fullscreenElement) await document.exitFullscreen();
+  } catch (_) { fsSwitch.checked = !!document.fullscreenElement; }
+});
+document.addEventListener('fullscreenchange', () => { fsSwitch.checked = !!document.fullscreenElement; });
+
+// Pointer clicks shouldn't leave camera controls focused, so Space keeps working as the shutter.
+app.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn && e.detail > 0) btn.blur();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (!viewer.hidden) closeViewer();
+    else if (review.classList.contains('open')) closeReview();
+    else if (settings.classList.contains('open')) closeSettings();
+    return;
+  }
+  if (e.target && e.target.closest && e.target.closest('input, select, textarea, button, a, video, [contenteditable]')) return;
+  if (settings.classList.contains('open') || review.classList.contains('open') || !viewer.hidden) return;
+  if (e.code === 'Space') { e.preventDefault(); if (!shutterBtn.disabled) shutterBtn.click(); }
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    cancelCountdown();
+    if (rec.active) { stopRecording(); backgroundNote = 'Recording stopped when the app went to the background. Your clip is in Captures.'; }
+  } else {
+    if (backgroundNote) { toast(backgroundNote, 5000); backgroundNote = ''; }
+    if (noticeKind === 'insecure' || noticeKind === 'unsupported') return;
+    if (!videoTrack || videoTrack.readyState === 'ended') startCamera();
+    else if (video.paused) video.play().catch(() => {});
+  }
+});
+
+if ('ResizeObserver' in window) new ResizeObserver(() => layoutFrame()).observe(stage);
+else window.addEventListener('resize', layoutFrame);
+video.addEventListener('resize', () => { layoutFrame(); applyMirror(); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawGuides());
+
+/* ───────── Start ───────── */
+settings.inert = true;
+review.inert = true;
+$('lookHint').hidden = supportsCtxFilter;
+$('autoSwitch').checked = state.autoDownload;
+if (!canRecord) modeButtons[1].setAttribute('aria-disabled', 'true');
+sizeOutputs();
+setZoom(1);
+renderThumb(false);
+updateUI();
+startCamera();
+})();
+</script>
+</body>
+</html>
