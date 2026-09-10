@@ -5,527 +5,243 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Pro Dual‑View Camera</title>
     <style>
-        /* ── Reset & base ── */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
+            width: 100%; height: 100%; overflow: hidden;
             background: #0b0e14;
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            color: #fff;
-            user-select: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            color: #fff; user-select: none;
+            display: flex; align-items: center; justify-content: center;
         }
-
-        /* ── App container ── */
         .app {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            max-width: 500px;
-            max-height: 900px;
-            background: #11161f;
-            border-radius: 32px;
-            overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-            display: flex;
-            flex-direction: column;
+            position: relative; width: 100%; height: 100%;
+            max-width: 500px; max-height: 900px;
+            background: #11161f; border-radius: 32px; overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column;
         }
-
-        /* ── Mobile: full screen, no rounded corners ── */
         @media (max-width: 599px) {
-            .app {
-                max-width: 100%;
-                max-height: 100%;
-                border-radius: 0;
-                box-shadow: none;
-            }
+            .app { max-width: 100%; max-height: 100%; border-radius: 0; box-shadow: none; }
         }
-
-        /* ── Viewport ── */
         .viewport {
-            flex: 1;
-            position: relative;
-            background: #0a0d14;
-            overflow: hidden;
-            min-height: 0;
+            flex: 1; position: relative; background: #0a0d14;
+            overflow: hidden; min-height: 0;
         }
         #portraitCanvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-            object-fit: cover;
-            background: #0a0d14;
+            width: 100%; height: 100%; display: block;
+            object-fit: cover; background: #0a0d14;
         }
         .landscape-inset {
-            position: absolute;
-            bottom: 18px;
-            right: 18px;
-            width: 120px;
-            height: 68px;
-            border-radius: 14px;
+            position: absolute; bottom: 18px; right: 18px;
+            width: 120px; height: 68px; border-radius: 14px;
             overflow: hidden;
-            border: 2px solid rgba(255, 255, 255, 0.25);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-            transition: transform 0.2s ease, opacity 0.2s ease;
+            border: 2px solid rgba(255,255,255,0.25);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            transition: transform 0.2s ease;
             background: #000;
         }
-        .landscape-inset:hover {
-            transform: scale(1.04);
-            border-color: rgba(255, 255, 255, 0.5);
-        }
-        #landscapeCanvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-            object-fit: cover;
-        }
-
+        .landscape-inset:hover { transform: scale(1.04); border-color: rgba(255,255,255,0.5); }
+        #landscapeCanvas { width: 100%; height: 100%; display: block; object-fit: cover; }
         .grid-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 5;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 5;
         }
-        .grid-overlay.active {
-            opacity: 0.4;
-        }
-        .grid-overlay::before,
-        .grid-overlay::after {
-            content: '';
-            position: absolute;
-            background: rgba(255, 255, 255, 0.7);
+        .grid-overlay.active { opacity: 0.4; }
+        .grid-overlay::before, .grid-overlay::after {
+            content: ''; position: absolute; background: rgba(255,255,255,0.7);
         }
         .grid-overlay::before {
-            top: 33.33%;
-            bottom: 33.33%;
-            left: 0;
-            right: 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.4);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+            top: 33.33%; bottom: 33.33%; left: 0; right: 0;
+            border-top: 1px solid rgba(255,255,255,0.4);
+            border-bottom: 1px solid rgba(255,255,255,0.4);
         }
         .grid-overlay::after {
-            left: 33.33%;
-            right: 33.33%;
-            top: 0;
-            bottom: 0;
-            border-left: 1px solid rgba(255, 255, 255, 0.4);
-            border-right: 1px solid rgba(255, 255, 255, 0.4);
+            left: 33.33%; right: 33.33%; top: 0; bottom: 0;
+            border-left: 1px solid rgba(255,255,255,0.4);
+            border-right: 1px solid rgba(255,255,255,0.4);
         }
-
         .rec-badge {
-            position: absolute;
-            top: 18px;
-            left: 18px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(0, 0, 0, 0.65);
-            backdrop-filter: blur(8px);
-            padding: 6px 14px 6px 10px;
-            border-radius: 40px;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.3px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
+            position: absolute; top: 18px; left: 18px;
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+            padding: 6px 14px 6px 10px; border-radius: 40px;
+            font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+            opacity: 0; transition: opacity 0.3s ease;
             pointer-events: none;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            z-index: 10;
+            border: 1px solid rgba(255,255,255,0.08); z-index: 10;
         }
-        .rec-badge.active {
-            opacity: 1;
-        }
+        .rec-badge.active { opacity: 1; }
         .rec-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #ff3b30;
+            width: 10px; height: 10px; border-radius: 50%; background: #ff3b30;
             animation: pulse-dot 1.2s ease-in-out infinite;
         }
-        .rec-dot.paused {
-            animation: none;
-            background: #ff9f0a;
-        }
+        .rec-dot.paused { animation: none; background: #ff9f0a; }
         @keyframes pulse-dot {
-            0%, 100% { transform: scale(1); opacity: 1; }
+            0%,100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(0.6); opacity: 0.4; }
         }
         .rec-timer {
-            font-variant-numeric: tabular-nums;
-            min-width: 48px;
-            display: inline-block;
-            color: #fff;
+            font-variant-numeric: tabular-nums; min-width: 48px;
+            display: inline-block; color: #fff;
         }
-
         .controls {
             padding: 10px 12px 14px;
-            background: rgba(17, 22, 31, 0.92);
-            backdrop-filter: blur(12px);
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 6px;
-            flex-shrink: 0;
-            flex-wrap: wrap;
+            background: rgba(17,22,31,0.92); backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(255,255,255,0.06);
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 6px; flex-shrink: 0; flex-wrap: wrap;
         }
-        .controls .btn-group {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
+        .controls .btn-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
         .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            border: none;
-            border-radius: 30px;
-            padding: 8px 12px;
-            font-size: 13px;
-            font-weight: 600;
-            background: rgba(255, 255, 255, 0.07);
-            color: #eee;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            min-width: 40px;
-            border: 1px solid transparent;
-            white-space: nowrap;
+            display: inline-flex; align-items: center; justify-content: center;
+            gap: 4px; border: none; border-radius: 30px;
+            padding: 8px 12px; font-size: 13px; font-weight: 600;
+            background: rgba(255,255,255,0.07); color: #eee;
+            cursor: pointer; transition: all 0.2s ease;
+            min-width: 40px; border: 1px solid transparent; white-space: nowrap;
         }
-        .btn:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.14);
-            transform: scale(1.02);
-        }
-        .btn:active:not(:disabled) {
-            transform: scale(0.96);
-        }
-        .btn:disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-            transform: none !important;
-        }
-        .btn-photo {
-            background: #2b6df6;
-            color: #fff;
-        }
-        .btn-photo:hover:not(:disabled) {
-            background: #3a7aff;
-        }
-        .btn-record {
-            background: #ff3b30;
-            color: #fff;
-        }
-        .btn-record:hover:not(:disabled) {
-            background: #ff554a;
-        }
+        .btn:hover:not(:disabled) { background: rgba(255,255,255,0.14); transform: scale(1.02); }
+        .btn:active:not(:disabled) { transform: scale(0.96); }
+        .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
+        .btn-photo { background: #2b6df6; color: #fff; }
+        .btn-photo:hover:not(:disabled) { background: #3a7aff; }
+        .btn-record { background: #ff3b30; color: #fff; }
+        .btn-record:hover:not(:disabled) { background: #ff554a; }
         .btn-record.recording {
             background: #ff9f0a;
             animation: pulse-record 1.4s ease-in-out infinite;
         }
         @keyframes pulse-record {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(255,159,10,0.4); }
+            0%,100% { box-shadow: 0 0 0 0 rgba(255,159,10,0.4); }
             50% { box-shadow: 0 0 0 8px rgba(255,159,10,0); }
         }
-        .btn-stop {
-            background: #ff453a;
-            color: #fff;
-        }
-        .btn-stop:hover:not(:disabled) {
-            background: #ff5e54;
-        }
-        .btn-icon {
-            font-size: 16px;
-            line-height: 1;
-        }
+        .btn-stop { background: #ff453a; color: #fff; }
+        .btn-stop:hover:not(:disabled) { background: #ff5e54; }
+        .btn-icon { font-size: 16px; line-height: 1; }
         .btn-settings {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 8px 10px;
-            font-size: 18px;
+            background: rgba(255,255,255,0.05); padding: 8px 10px; font-size: 18px;
         }
-        .btn-settings:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.12);
-        }
-
+        .btn-settings:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
         .status-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 12px 8px;
-            font-size: 11px;
-            color: rgba(255, 255, 255, 0.45);
-            gap: 6px;
-            flex-wrap: wrap;
-            flex-shrink: 0;
-            min-height: 28px;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 12px 8px; font-size: 11px;
+            color: rgba(255,255,255,0.45); gap: 6px; flex-wrap: wrap;
+            flex-shrink: 0; min-height: 28px;
         }
         .status-bar .status-msg {
-            flex: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .status-bar .download-links {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            flex-wrap: wrap;
+            display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
         }
         .status-bar .download-links a {
-            color: #5a8aff;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 10px;
-            padding: 2px 8px;
-            border-radius: 12px;
-            background: rgba(42, 109, 246, 0.15);
-            transition: background 0.2s;
-            white-space: nowrap;
+            color: #5a8aff; text-decoration: none; font-weight: 500; font-size: 10px;
+            padding: 2px 8px; border-radius: 12px;
+            background: rgba(42,109,246,0.15);
+            transition: background 0.2s; white-space: nowrap;
         }
-        .status-bar .download-links a:hover {
-            background: rgba(42, 109, 246, 0.28);
-        }
-
+        .status-bar .download-links a:hover { background: rgba(42,109,246,0.28); }
         .settings-panel {
-            position: absolute;
-            top: 0;
-            right: -100%;
-            width: 85%;
-            max-width: 340px;
-            height: 100%;
-            background: rgba(17, 22, 31, 0.96);
-            backdrop-filter: blur(16px);
-            border-left: 1px solid rgba(255, 255, 255, 0.06);
-            padding: 20px 16px;
-            overflow-y: auto;
-            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 50;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
+            position: absolute; top: 0; right: -100%;
+            width: 85%; max-width: 340px; height: 100%;
+            background: rgba(17,22,31,0.96); backdrop-filter: blur(16px);
+            border-left: 1px solid rgba(255,255,255,0.06);
+            padding: 20px 16px; overflow-y: auto;
+            transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
+            z-index: 50; display: flex; flex-direction: column; gap: 14px;
         }
-        .settings-panel.open {
-            right: 0;
-        }
+        .settings-panel.open { right: 0; }
         .settings-panel h3 {
-            font-size: 16px;
-            font-weight: 600;
-            color: #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            font-size: 16px; font-weight: 600; color: #eee;
+            display: flex; justify-content: space-between; align-items: center;
         }
         .settings-panel h3 .close-btn {
-            background: none;
-            border: none;
-            color: #aaa;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 0 6px;
+            background: none; border: none; color: #aaa; font-size: 24px;
+            cursor: pointer; padding: 0 6px;
         }
-        .settings-panel h3 .close-btn:hover {
-            color: #fff;
-        }
-        .setting-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
+        .settings-panel h3 .close-btn:hover { color: #fff; }
+        .setting-group { display: flex; flex-direction: column; gap: 4px; }
         .setting-group label {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
-            font-weight: 500;
-            letter-spacing: 0.3px;
-            text-transform: uppercase;
+            font-size: 12px; color: rgba(255,255,255,0.6);
+            font-weight: 500; letter-spacing: 0.3px; text-transform: uppercase;
         }
-        .setting-group .row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
+        .setting-group .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .setting-group select,
         .setting-group input[type="range"],
         .setting-group input[type="color"],
         .setting-group input[type="number"] {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            color: #fff;
-            padding: 5px 8px;
-            font-size: 13px;
-            outline: none;
-            transition: border 0.2s;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; color: #fff; padding: 5px 8px;
+            font-size: 13px; outline: none; transition: border 0.2s;
             width: auto;
         }
-        .setting-group select:focus,
-        .setting-group input:focus {
-            border-color: #2b6df6;
-        }
+        .setting-group select:focus, .setting-group input:focus { border-color: #2b6df6; }
         .setting-group input[type="range"] {
-            flex: 1;
-            accent-color: #2b6df6;
-            padding: 0;
-            height: 4px;
-            min-width: 60px;
+            flex: 1; accent-color: #2b6df6; padding: 0; height: 4px; min-width: 60px;
         }
         .setting-group input[type="color"] {
-            width: 36px;
-            height: 36px;
-            padding: 2px;
-            border-radius: 50%;
-            cursor: pointer;
+            width: 36px; height: 36px; padding: 2px; border-radius: 50%; cursor: pointer;
         }
         .setting-group .value-label {
-            font-size: 13px;
-            color: #aaa;
-            min-width: 28px;
-            text-align: right;
+            font-size: 13px; color: #aaa; min-width: 28px; text-align: right;
         }
-        .setting-group .toggle-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .setting-group .toggle-row { display: flex; align-items: center; gap: 10px; }
         .toggle {
-            position: relative;
-            width: 38px;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
-            cursor: pointer;
-            transition: background 0.25s;
-            flex-shrink: 0;
+            position: relative; width: 38px; height: 20px;
+            background: rgba(255,255,255,0.15); border-radius: 12px;
+            cursor: pointer; transition: background 0.25s; flex-shrink: 0;
         }
-        .toggle.active {
-            background: #2b6df6;
-        }
+        .toggle.active { background: #2b6df6; }
         .toggle .knob {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 16px;
-            height: 16px;
-            background: #fff;
-            border-radius: 50%;
+            position: absolute; top: 2px; left: 2px;
+            width: 16px; height: 16px; background: #fff; border-radius: 50%;
             transition: transform 0.25s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
-        .toggle.active .knob {
-            transform: translateX(18px);
-        }
+        .toggle.active .knob { transform: translateX(18px); }
         .setting-group .hint {
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.3);
-            margin-top: 2px;
+            font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 2px;
         }
-
         .error-msg {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(6px);
-            padding: 30px;
-            text-align: center;
-            z-index: 20;
-            color: #eee;
-            font-size: 16px;
-            line-height: 1.6;
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(6px);
+            padding: 30px; text-align: center; z-index: 20;
+            color: #eee; font-size: 16px; line-height: 1.6;
         }
-        .error-msg .emoji {
-            font-size: 48px;
-            margin-bottom: 16px;
-        }
-        .error-msg .sub {
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 14px;
-            margin-top: 6px;
-        }
+        .error-msg .emoji { font-size: 48px; margin-bottom: 16px; }
+        .error-msg .sub { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 6px; }
         .error-msg .retry-btn {
-            margin-top: 20px;
-            background: #2b6df6;
-            border: none;
-            color: #fff;
-            padding: 10px 28px;
-            border-radius: 40px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
+            margin-top: 20px; background: #2b6df6; border: none; color: #fff;
+            padding: 10px 28px; border-radius: 40px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
             transition: background 0.2s;
         }
-        .error-msg .retry-btn:hover {
-            background: #3a7aff;
-        }
-
-        /* ── Mobile fine‑tune ── */
+        .error-msg .retry-btn:hover { background: #3a7aff; }
         @media (max-width: 480px) {
-            .controls {
-                padding: 6px 8px 10px;
-                gap: 4px;
-            }
-            .btn {
-                font-size: 11px;
-                padding: 6px 8px;
-                min-width: 32px;
-            }
+            .controls { padding: 6px 8px 10px; gap: 4px; }
+            .btn { font-size: 11px; padding: 6px 8px; min-width: 32px; }
             .landscape-inset {
-                width: 80px;
-                height: 45px;
-                bottom: 10px;
-                right: 10px;
-                border-radius: 8px;
+                width: 80px; height: 45px;
+                bottom: 10px; right: 10px; border-radius: 8px;
             }
             .rec-badge {
-                font-size: 10px;
-                padding: 4px 8px 4px 6px;
-                top: 10px;
-                left: 10px;
+                font-size: 10px; padding: 4px 8px 4px 6px;
+                top: 10px; left: 10px;
             }
-            .settings-panel {
-                width: 100%;
-                max-width: 100%;
-                padding: 14px 12px;
-            }
+            .settings-panel { width: 100%; max-width: 100%; padding: 14px 12px; }
             .status-bar {
-                padding: 0 8px 6px;
-                font-size: 10px;
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 2px;
+                padding: 0 8px 6px; font-size: 10px;
+                flex-direction: column; align-items: flex-start; gap: 2px;
             }
-            .status-bar .download-links {
-                width: 100%;
-                justify-content: flex-start;
-            }
+            .status-bar .download-links { width: 100%; justify-content: flex-start; }
         }
-
-        .settings-panel::-webkit-scrollbar {
-            width: 4px;
-        }
+        .settings-panel::-webkit-scrollbar { width: 4px; }
         .settings-panel::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
+            background: rgba(255,255,255,0.2); border-radius: 4px;
         }
-        #sourceVideo {
-            display: none;
-        }
+        #sourceVideo { display: none; }
     </style>
 </head>
 <body>
@@ -634,7 +350,7 @@
             </div>
 
             <div class="setting-group">
-                <label>Segment Recording (minutes, 0 = no split)</label>
+                <label>Segment Recording (min, 0 = no split)</label>
                 <input type="number" id="segmentInput" value="0" min="0" max="60" step="1" />
             </div>
 
@@ -654,7 +370,6 @@
                         <option value="photo">Auto‑Photo</option>
                     </select>
                 </div>
-                <div class="hint">Triggers when movement exceeds threshold.</div>
             </div>
 
             <div class="setting-group">
@@ -725,7 +440,7 @@
             const LANDSCAPE_W = 320;
             const LANDSCAPE_H = 180;
 
-            // ─── State ──────────────────────────────────────────────────
+            // ─── State ─────────────────────────────────────────────────
             let stream = null;
             let processedStream = null;
             let isStreaming = false;
@@ -737,8 +452,7 @@
 
             let audioContext = null;
             let sourceNode = null;
-            let gainNode = null;
-            let noiseThreshold = 0;
+            let noiseGateNode = null;
 
             let landscapeRecorder = null;
             let portraitRecorder = null;
@@ -746,12 +460,8 @@
             let portraitChunks = [];
             let landscapeMimeType = 'video/webm';
             let portraitMimeType = 'video/webm';
-            let segmentCount = 0;
-            let segmentTimer = null;
-            let segmentDurationMs = 0;
 
             let capturedFiles = [];
-
             let currentZoom = 1.0;
             let currentFilter = 'none';
 
@@ -765,93 +475,66 @@
             let recognition = null;
 
             let countdownActive = false;
-            let countdownValue = 0;
             let countdownInterval = null;
 
-            // ─── Canvas setup ──────────────────────────────────────────
-            function setupCanvases() {
-                portraitCanvas.width = PORTRAIT_W;
-                portraitCanvas.height = PORTRAIT_H;
-                landscapeCanvas.width = LANDSCAPE_W;
-                landscapeCanvas.height = LANDSCAPE_H;
-            }
-            setupCanvases();
+            // ─── Setup canvases ────────────────────────────────────────
+            portraitCanvas.width = PORTRAIT_W;
+            portraitCanvas.height = PORTRAIT_H;
+            landscapeCanvas.width = LANDSCAPE_W;
+            landscapeCanvas.height = LANDSCAPE_H;
 
-            // ─── Audio processing ──────────────────────────────────────
+            // ─── Audio processing (noise gate) ────────────────────────
             function setupAudioProcessing(originalStream) {
-                return new Promise((resolve) => {
-                    try {
-                        const audioTrack = originalStream.getAudioTracks()[0];
-                        if (!audioTrack) {
-                            resolve(originalStream);
-                            return;
-                        }
+                try {
+                    const audioTrack = originalStream.getAudioTracks()[0];
+                    if (!audioTrack) return originalStream;
 
-                        audioContext = new(window.AudioContext || window.webkitAudioContext)();
-                        // Resume on first user interaction (handled later)
-                        sourceNode = audioContext.createMediaStreamSource(originalStream);
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    sourceNode = audioContext.createMediaStreamSource(originalStream);
 
-                        const scriptNode = audioContext.createScriptProcessor(1024, 1, 1);
-                        let threshold = 0.01;
+                    const scriptNode = audioContext.createScriptProcessor(1024, 1, 1);
+                    let threshold = 0.01;
 
-                        scriptNode.onaudioprocess = function(event) {
-                            const input = event.inputBuffer.getChannelData(0);
-                            const output = event.outputBuffer.getChannelData(0);
-                            let sum = 0;
-                            for (let i = 0; i < input.length; i++) {
-                                sum += input[i] * input[i];
-                            }
-                            const rms = Math.sqrt(sum / input.length);
-                            let gainVal = 1;
-                            if (rms < threshold) {
-                                gainVal = 0.001;
-                            } else {
-                                gainVal = Math.min(1, (rms - threshold) / (0.1 - threshold) + 0.1);
-                            }
-                            for (let i = 0; i < input.length; i++) {
-                                output[i] = input[i] * gainVal;
-                            }
-                        };
+                    scriptNode.onaudioprocess = function(event) {
+                        const input = event.inputBuffer.getChannelData(0);
+                        const output = event.outputBuffer.getChannelData(0);
+                        let sum = 0;
+                        for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+                        const rms = Math.sqrt(sum / input.length);
+                        let gainVal = 1;
+                        if (rms < threshold) gainVal = 0.001;
+                        else gainVal = Math.min(1, (rms - threshold) / (0.1 - threshold) + 0.1);
+                        for (let i = 0; i < input.length; i++) output[i] = input[i] * gainVal;
+                    };
 
-                        const updateThreshold = () => {
-                            const val = parseFloat(noiseSlider.value) / 100;
-                            threshold = 0.001 + val * 0.1;
-                        };
-                        noiseSlider.addEventListener('input', updateThreshold);
-                        updateThreshold();
+                    const updateThreshold = () => {
+                        const val = parseFloat(noiseSlider.value) / 100;
+                        threshold = 0.001 + val * 0.1;
+                    };
+                    noiseSlider.addEventListener('input', updateThreshold);
+                    updateThreshold();
 
-                        const dest = audioContext.createMediaStreamDestination();
-                        sourceNode.connect(scriptNode);
-                        scriptNode.connect(dest);
+                    const dest = audioContext.createMediaStreamDestination();
+                    sourceNode.connect(scriptNode);
+                    scriptNode.connect(dest);
 
-                        const videoTrack = originalStream.getVideoTracks()[0];
-                        if (!videoTrack) {
-                            resolve(originalStream);
-                            return;
-                        }
-                        const newStream = new MediaStream();
-                        newStream.addTrack(videoTrack);
-                        const processedAudioTrack = dest.stream.getAudioTracks()[0];
-                        if (processedAudioTrack) {
-                            newStream.addTrack(processedAudioTrack);
-                        } else {
-                            const origAudio = originalStream.getAudioTracks()[0];
-                            if (origAudio) newStream.addTrack(origAudio.clone());
-                        }
+                    const videoTrack = originalStream.getVideoTracks()[0];
+                    if (!videoTrack) return originalStream;
 
-                        // Store for cleanup
-                        window.__audioScriptNode = scriptNode;
-                        window.__audioDest = dest;
+                    const newStream = new MediaStream();
+                    newStream.addTrack(videoTrack);
+                    const processedAudioTrack = dest.stream.getAudioTracks()[0];
+                    if (processedAudioTrack) newStream.addTrack(processedAudioTrack);
+                    else if (audioTrack) newStream.addTrack(audioTrack.clone());
 
-                        resolve(newStream);
-                    } catch (err) {
-                        console.warn('Audio processing failed, using raw stream', err);
-                        resolve(originalStream);
-                    }
-                });
+                    return newStream;
+                } catch (err) {
+                    console.warn('Audio processing failed, using raw stream', err);
+                    return originalStream;
+                }
             }
 
-            // ─── Camera start / restart ──────────────────────────────
+            // ─── Camera start ──────────────────────────────────────────
             async function startCamera() {
                 try {
                     const resolution = resolutionSelect.value;
@@ -862,29 +545,22 @@
                         video: {
                             facingMode: facing,
                             width: { ideal: w },
-                            height: { ideal: h },
+                            height: { ideal: h }
                         },
                         audio: true
                     };
 
-                    if (stream) {
-                        stream.getTracks().forEach(t => t.stop());
-                        stream = null;
-                    }
-                    if (processedStream) {
-                        processedStream.getTracks().forEach(t => t.stop());
-                        processedStream = null;
-                    }
-                    if (audioContext) {
-                        audioContext.close();
-                        audioContext = null;
-                    }
+                    if (stream) stream.getTracks().forEach(t => t.stop());
+                    if (processedStream) processedStream.getTracks().forEach(t => t.stop());
+                    if (audioContext) { audioContext.close(); audioContext = null; }
 
                     const originalStream = await navigator.mediaDevices.getUserMedia(constraints);
                     stream = originalStream;
-                    processedStream = await setupAudioProcessing(originalStream);
+                    processedStream = setupAudioProcessing(originalStream);
 
-                    video.srcObject = processedStream;
+                    // Important: bind the ORIGINAL stream to the video element
+                    // (not the processed one) for reliable playback on mobile.
+                    video.srcObject = originalStream;
                     await video.play();
 
                     isStreaming = true;
@@ -899,7 +575,6 @@
 
                     prevFrameData = null;
                     motionTriggered = false;
-
                     return true;
                 } catch (err) {
                     console.error('Camera error:', err);
@@ -911,55 +586,86 @@
                 }
             }
 
-            // ─── Render loop ──────────────────────────────────────────
+            // ─── Smart crop calculation ────────────────────────────────
+            // Given video frame dimensions and zoom, returns the crop rects
+            // for a 9:16 portrait and a 16:9 landscape slice.
+            function computeCropRects(vw, vh, zoom) {
+                const zoomW = vw / zoom;
+                const zoomH = vh / zoom;
+                const zoomX = (vw - zoomW) / 2;
+                const zoomY = (vh - zoomH) / 2;
+
+                // Portrait 9:16
+                let pW, pH, pX, pY;
+                if (zoomW / zoomH > 9 / 16) {
+                    // Wider than 9:16 → crop width
+                    pH = zoomH;
+                    pW = pH * (9 / 16);
+                    pX = zoomX + (zoomW - pW) / 2;
+                    pY = zoomY;
+                } else {
+                    // Taller than 9:16 → crop height
+                    pW = zoomW;
+                    pH = pW * (16 / 9);
+                    pX = zoomX;
+                    pY = zoomY + (zoomH - pH) / 2;
+                }
+
+                // Landscape 16:9
+                let lW, lH, lX, lY;
+                if (zoomW / zoomH > 16 / 9) {
+                    // Wider than 16:9 → crop width
+                    lH = zoomH;
+                    lW = lH * (16 / 9);
+                    lX = zoomX + (zoomW - lW) / 2;
+                    lY = zoomY;
+                } else {
+                    // Taller than 16:9 → crop height
+                    lW = zoomW;
+                    lH = lW * (9 / 16);
+                    lX = zoomX;
+                    lY = zoomY + (zoomH - lH) / 2;
+                }
+
+                return {
+                    portrait: { x: pX, y: pY, w: pW, h: pH },
+                    landscape: { x: lX, y: lY, w: lW, h: lH }
+                };
+            }
+
+            // ─── Render loop ───────────────────────────────────────────
             function renderLoop() {
                 if (!isStreaming) {
                     animationFrame = requestAnimationFrame(renderLoop);
                     return;
                 }
 
-                const vw = video.videoWidth || 1280;
-                const vh = video.videoHeight || 720;
+                const vw = video.videoWidth || 0;
+                const vh = video.videoHeight || 0;
                 if (vw === 0 || vh === 0) {
                     animationFrame = requestAnimationFrame(renderLoop);
                     return;
                 }
 
-                const zoom = currentZoom;
-                const cropW = vw / zoom;
-                const cropH = vh / zoom;
-                const cropX = (vw - cropW) / 2;
-                const cropY = (vh - cropH) / 2;
+                const crops = computeCropRects(vw, vh, currentZoom);
 
-                // ── Portrait: crop to 9:16 ──
-                const portraitCropW = cropH * (9 / 16);
-                // Ensure we don't exceed cropW
-                const portraitCropW_actual = Math.min(portraitCropW, cropW);
-                const portraitCropX = cropX + (cropW - portraitCropW_actual) / 2;
-                const portraitCropY = cropY;
-                const portraitCropH = cropH;
-
+                // Portrait
                 pCtx.clearRect(0, 0, PORTRAIT_W, PORTRAIT_H);
                 pCtx.drawImage(
                     video,
-                    portraitCropX, portraitCropY, portraitCropW_actual, portraitCropH,
+                    crops.portrait.x, crops.portrait.y,
+                    crops.portrait.w, crops.portrait.h,
                     0, 0, PORTRAIT_W, PORTRAIT_H
                 );
                 applyFilter(pCtx, PORTRAIT_W, PORTRAIT_H);
 
-                // ── Landscape: full zoomed area scaled to fit ──
+                // Landscape
                 lCtx.clearRect(0, 0, LANDSCAPE_W, LANDSCAPE_H);
-                const scaleX = LANDSCAPE_W / cropW;
-                const scaleY = LANDSCAPE_H / cropH;
-                const scale = Math.min(scaleX, scaleY);
-                const dw = cropW * scale;
-                const dh = cropH * scale;
-                const dx = (LANDSCAPE_W - dw) / 2;
-                const dy = (LANDSCAPE_H - dh) / 2;
                 lCtx.drawImage(
                     video,
-                    cropX, cropY, cropW, cropH,
-                    dx, dy, dw, dh
+                    crops.landscape.x, crops.landscape.y,
+                    crops.landscape.w, crops.landscape.h,
+                    0, 0, LANDSCAPE_W, LANDSCAPE_H
                 );
                 applyFilter(lCtx, LANDSCAPE_W, LANDSCAPE_H);
 
@@ -970,26 +676,21 @@
                 animationFrame = requestAnimationFrame(renderLoop);
             }
 
-            // ─── Filters ──────────────────────────────────────────────
+            // ─── Filters ───────────────────────────────────────────────
             function applyFilter(ctx, w, h) {
                 const filter = currentFilter;
                 if (filter === 'none') return;
                 const imageData = ctx.getImageData(0, 0, w, h);
                 const data = imageData.data;
                 for (let i = 0; i < data.length; i += 4) {
-                    let r = data[i],
-                        g = data[i + 1],
-                        b = data[i + 2];
+                    const r = data[i], g = data[i + 1], b = data[i + 2];
                     if (filter === 'grayscale') {
                         const gray = 0.299 * r + 0.587 * g + 0.114 * b;
                         data[i] = data[i + 1] = data[i + 2] = gray;
                     } else if (filter === 'sepia') {
-                        const tr = 0.393 * r + 0.769 * g + 0.189 * b;
-                        const tg = 0.349 * r + 0.686 * g + 0.168 * b;
-                        const tb = 0.272 * r + 0.534 * g + 0.131 * b;
-                        data[i] = Math.min(tr, 255);
-                        data[i + 1] = Math.min(tg, 255);
-                        data[i + 2] = Math.min(tb, 255);
+                        data[i]     = Math.min(255, 0.393 * r + 0.769 * g + 0.189 * b);
+                        data[i + 1] = Math.min(255, 0.349 * r + 0.686 * g + 0.168 * b);
+                        data[i + 2] = Math.min(255, 0.272 * r + 0.534 * g + 0.131 * b);
                     } else if (filter === 'invert') {
                         data[i] = 255 - r;
                         data[i + 1] = 255 - g;
@@ -999,10 +700,9 @@
                 ctx.putImageData(imageData, 0, 0);
             }
 
-            // ─── Motion detection ─────────────────────────────────────
+            // ─── Motion detection ──────────────────────────────────────
             function detectMotion(ctx) {
-                const w = 80,
-                    h = 60;
+                const w = 80, h = 60;
                 const imageData = ctx.getImageData(0, 0, w, h);
                 if (!prevFrameData) {
                     prevFrameData = imageData.data.slice();
@@ -1010,8 +710,7 @@
                 }
                 const data = imageData.data;
                 let diff = 0;
-                const len = data.length;
-                for (let i = 0; i < len; i += 4) {
+                for (let i = 0; i < data.length; i += 4) {
                     diff += Math.abs(data[i] - prevFrameData[i]);
                     diff += Math.abs(data[i + 1] - prevFrameData[i + 1]);
                     diff += Math.abs(data[i + 2] - prevFrameData[i + 2]);
@@ -1024,55 +723,52 @@
                     motionTriggered = true;
                     statusMsg.textContent = '🔔 Motion detected!';
                     if (motionActionVal === 'record') {
-                        if (!isRecording && !countdownActive) {
-                            startRecordingWithCountdown();
-                        }
-                    } else if (motionActionVal === 'photo') {
+                        if (!isRecording && !countdownActive) startRecordingWithCountdown();
+                    } else {
                         capturePhoto();
                     }
                     setTimeout(() => { motionTriggered = false; }, 2000);
                 }
-                if (avgDiff < threshold * 0.5) {
-                    motionTriggered = false;
-                }
+                if (avgDiff < threshold * 0.5) motionTriggered = false;
             }
 
-            // ─── Photo capture ────────────────────────────────────────
+            // ─── Photo capture ─────────────────────────────────────────
             function capturePhoto() {
-                if (!isStreaming) {
-                    statusMsg.textContent = '⚠️ Camera not ready';
-                    return;
-                }
-                // Resume audio context if needed
-                if (audioContext && audioContext.state === 'suspended') {
-                    audioContext.resume();
-                }
+                if (!isStreaming) { statusMsg.textContent = '⚠️ Camera not ready'; return; }
+                if (audioContext && audioContext.state === 'suspended') audioContext.resume();
 
-                Promise.all([
-                    new Promise(resolve => portraitCanvas.toBlob(resolve, 'image/png')),
-                    new Promise(resolve => landscapeCanvas.toBlob(resolve, 'image/png'))
-                ]).then(([pBlob, lBlob]) => {
-                    const ts = timestamp();
-                    const files = [];
-                    if (pBlob) {
-                        files.push({ name: `portrait_${ts}.png`, blob: pBlob, type: 'image/png', label: '📱 Portrait' });
-                    }
-                    if (lBlob) {
-                        files.push({ name: `landscape_${ts}.png`, blob: lBlob, type: 'image/png', label: '🖥️ Landscape' });
-                    }
-                    if (files.length === 0) return;
-                    addFiles(files);
-                    // Sequential download
-                    downloadFilesSequentially(files);
-                    statusMsg.textContent = `📸 Photo saved (${files.length})`;
-                });
+                const pData = portraitCanvas.toDataURL('image/png');
+                const lData = landscapeCanvas.toDataURL('image/png');
+
+                const ts = timestamp();
+                const files = [];
+
+                const pBlob = dataURLtoBlob(pData);
+                const lBlob = dataURLtoBlob(lData);
+
+                if (pBlob) files.push({ name: `portrait_${ts}.png`, blob: pBlob, type: 'image/png', label: '📱 Portrait' });
+                if (lBlob) files.push({ name: `landscape_${ts}.png`, blob: lBlob, type: 'image/png', label: '🖥️ Landscape' });
+
+                if (files.length === 0) return;
+                addFiles(files);
+                downloadFilesSequentially(files);
+                statusMsg.textContent = `📸 Photo saved (${files.length})`;
+            }
+
+            function dataURLtoBlob(dataURL) {
+                try {
+                    const parts = dataURL.split(',');
+                    const mime = parts[0].match(/:(.*?);/)[1];
+                    const binary = atob(parts[1]);
+                    const array = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+                    return new Blob([array], { type: mime });
+                } catch (_) { return null; }
             }
 
             // ─── Recording ─────────────────────────────────────────────
             function startRecordingWithCountdown() {
-                if (audioContext && audioContext.state === 'suspended') {
-                    audioContext.resume();
-                }
+                if (audioContext && audioContext.state === 'suspended') audioContext.resume();
                 const countdown = parseInt(countdownSelect.value) || 0;
                 if (countdown > 0) {
                     countdownActive = true;
@@ -1098,84 +794,67 @@
                 }
             }
 
+            function pickMimeType() {
+                const candidates = [
+                    'video/webm;codecs=vp9,opus',
+                    'video/webm;codecs=vp8,opus',
+                    'video/webm;codecs=h264,opus',
+                    'video/webm',
+                    'video/mp4'
+                ];
+                for (const m of candidates) {
+                    if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+                }
+                return 'video/webm';
+            }
+
             function startRecordingInternal() {
                 if (!isStreaming || isRecording) return;
                 landscapeChunks = [];
                 portraitChunks = [];
-                segmentCount = 0;
-                if (segmentTimer) clearInterval(segmentTimer);
 
-                // For landscape, use the camera stream (or fallback to canvas)
-                const recordStream = processedStream || stream;
+                const mime = pickMimeType();
 
-                // Determine supported MIME types (prefer MP4 on iOS)
-                const mimeTypes = [
-                    'video/mp4;codecs=h264,aac',
-                    'video/webm;codecs=vp9,opus',
-                    'video/webm;codecs=vp8,opus',
-                    'video/webm;codecs=h264,opus',
-                    'video/webm'
-                ];
-                let selectedMime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m));
-                if (!selectedMime) selectedMime = 'video/webm';
+                // Get audio track from processed stream (or original)
+                const audioSource = processedStream || stream;
+                const audioTrack = audioSource ? audioSource.getAudioTracks()[0] : null;
 
-                // ── Landscape recorder (on camera stream) ──
+                // ── Landscape: record from landscape canvas ──
                 try {
-                    landscapeRecorder = new MediaRecorder(recordStream, { mimeType: selectedMime });
-                    landscapeMimeType = selectedMime;
+                    const lStream = landscapeCanvas.captureStream(30);
+                    if (audioTrack) {
+                        try { lStream.addTrack(audioTrack.clone()); } catch (_) {}
+                    }
+                    landscapeRecorder = new MediaRecorder(lStream, { mimeType: mime });
+                    landscapeMimeType = mime;
                     landscapeRecorder.ondataavailable = (e) => {
                         if (e.data && e.data.size > 0) landscapeChunks.push(e.data);
                     };
-                    landscapeRecorder.onstop = () => {
-                        onRecorderStop('landscape');
-                    };
-                    // Start with timeslice to ensure data flows
-                    landscapeRecorder.start(1000);
+                    landscapeRecorder.onstop = () => onRecorderStop('landscape');
+                    landscapeRecorder.start(500);
                 } catch (err) {
-                    console.warn('Landscape recorder on stream failed, falling back to canvas:', err);
-                    // Fallback: record from landscape canvas
-                    try {
-                        const lStream = landscapeCanvas.captureStream(30);
-                        const audioTrack = recordStream.getAudioTracks()[0];
-                        if (audioTrack) lStream.addTrack(audioTrack.clone());
-                        const fallbackMime = 'video/webm';
-                        landscapeRecorder = new MediaRecorder(lStream, { mimeType: fallbackMime });
-                        landscapeMimeType = fallbackMime;
-                        landscapeRecorder.ondataavailable = (e) => {
-                            if (e.data && e.data.size > 0) landscapeChunks.push(e.data);
-                        };
-                        landscapeRecorder.onstop = () => {
-                            onRecorderStop('landscape');
-                        };
-                        landscapeRecorder.start(1000);
-                    } catch (err2) {
-                        console.error('Landscape fallback failed:', err2);
-                        statusMsg.textContent = '❌ Failed to start landscape';
-                        return;
-                    }
+                    console.error('Landscape recorder failed:', err);
+                    statusMsg.textContent = '❌ Landscape recorder error';
+                    return;
                 }
 
-                // ── Portrait recorder (always from canvas) ──
+                // ── Portrait: record from portrait canvas ──
                 try {
                     const pStream = portraitCanvas.captureStream(30);
-                    // Attempt to add audio from camera
-                    const audioTrack = recordStream.getAudioTracks()[0];
                     if (audioTrack) {
                         try { pStream.addTrack(audioTrack.clone()); } catch (_) {}
                     }
-                    portraitRecorder = new MediaRecorder(pStream, { mimeType: selectedMime });
-                    portraitMimeType = selectedMime;
+                    portraitRecorder = new MediaRecorder(pStream, { mimeType: mime });
+                    portraitMimeType = mime;
                     portraitRecorder.ondataavailable = (e) => {
                         if (e.data && e.data.size > 0) portraitChunks.push(e.data);
                     };
-                    portraitRecorder.onstop = () => {
-                        onRecorderStop('portrait');
-                    };
-                    portraitRecorder.start(1000);
+                    portraitRecorder.onstop = () => onRecorderStop('portrait');
+                    portraitRecorder.start(500);
                 } catch (err) {
                     console.error('Portrait recorder failed:', err);
                     try { landscapeRecorder.stop(); } catch (_) {}
-                    statusMsg.textContent = '❌ Failed to start portrait';
+                    statusMsg.textContent = '❌ Portrait recorder error';
                     return;
                 }
 
@@ -1193,88 +872,46 @@
 
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = setInterval(updateTimer, 200);
-
-                const segMin = parseInt(segmentInput.value) || 0;
-                if (segMin > 0) {
-                    segmentDurationMs = segMin * 60 * 1000;
-                    segmentTimer = setInterval(() => {
-                        if (!isRecording || isPaused) return;
-                        splitSegment();
-                    }, segmentDurationMs);
-                } else {
-                    segmentDurationMs = 0;
-                }
             }
 
-            function splitSegment() {
-                if (!isRecording || isPaused) return;
-                if (landscapeRecorder && landscapeRecorder.state === 'recording') {
-                    landscapeRecorder.stop();
-                }
-                if (portraitRecorder && portraitRecorder.state === 'recording') {
-                    portraitRecorder.stop();
-                }
-                const checkStopped = () => {
-                    if ((!landscapeRecorder || landscapeRecorder.state === 'inactive') &&
-                        (!portraitRecorder || portraitRecorder.state === 'inactive')) {
-                        segmentCount++;
-                        startRecordingInternal();
-                    } else {
-                        setTimeout(checkStopped, 200);
-                    }
-                };
-                setTimeout(checkStopped, 300);
-            }
-
-            function onRecorderStop(type) {
+            function onRecorderStop() {
                 const bothStopped =
                     (!landscapeRecorder || landscapeRecorder.state === 'inactive') &&
                     (!portraitRecorder || portraitRecorder.state === 'inactive');
                 if (!bothStopped) return;
 
-                // Ensure we have at least one chunk by forcing a dataavailable event
-                // (the stop() already fires a final one, but we can also request)
-                // We'll just use what we have.
-
                 const ts = timestamp();
                 const files = [];
+
                 if (landscapeChunks.length > 0) {
                     const blob = new Blob(landscapeChunks, { type: landscapeMimeType });
-                    if (blob.size > 1000) { // Only save if at least 1KB
-                        const seg = segmentCount > 0 ? `_seg${segmentCount}` : '';
+                    if (blob.size > 1000) {
                         const ext = landscapeMimeType.includes('mp4') ? 'mp4' : 'webm';
                         files.push({
-                            name: `landscape${seg}_${ts}.${ext}`,
-                            blob: blob,
-                            type: landscapeMimeType,
-                            label: `🖥️ Land${seg}`
+                            name: `landscape_${ts}.${ext}`,
+                            blob, type: landscapeMimeType, label: '🖥️ Landscape'
                         });
-                    } else {
-                        console.warn('Landscape blob too small, ignoring');
                     }
                 }
                 if (portraitChunks.length > 0) {
                     const blob = new Blob(portraitChunks, { type: portraitMimeType });
                     if (blob.size > 1000) {
-                        const seg = segmentCount > 0 ? `_seg${segmentCount}` : '';
                         const ext = portraitMimeType.includes('mp4') ? 'mp4' : 'webm';
                         files.push({
-                            name: `portrait${seg}_${ts}.${ext}`,
-                            blob: blob,
-                            type: portraitMimeType,
-                            label: `📱 Port${seg}`
+                            name: `portrait_${ts}.${ext}`,
+                            blob, type: portraitMimeType, label: '📱 Portrait'
                         });
-                    } else {
-                        console.warn('Portrait blob too small, ignoring');
                     }
                 }
+
                 if (files.length > 0) {
                     addFiles(files);
                     downloadFilesSequentially(files);
-                    statusMsg.textContent = `📼 Segment ${segmentCount+1} saved`;
+                    statusMsg.textContent = `📼 Saved ${files.length} video(s)`;
                 } else {
-                    statusMsg.textContent = '⚠️ Recording had no data, try longer recording';
+                    statusMsg.textContent = '⚠️ No video data — try recording longer';
                 }
+
                 landscapeChunks = [];
                 portraitChunks = [];
 
@@ -1287,8 +924,6 @@
                     recordBtn.textContent = '●';
                     if (timerInterval) clearInterval(timerInterval);
                     timerInterval = null;
-                    if (segmentTimer) clearInterval(segmentTimer);
-                    segmentTimer = null;
                 }
             }
 
@@ -1315,9 +950,12 @@
                 if (!isRecording) return;
                 isRecording = false;
                 isPaused = false;
-                if (landscapeRecorder && landscapeRecorder.state === 'recording') landscapeRecorder.stop();
-                if (portraitRecorder && portraitRecorder.state === 'recording') portraitRecorder.stop();
-                // Also force a dataavailable by requesting a small timeslice? Not needed.
+                if (landscapeRecorder && landscapeRecorder.state !== 'inactive') {
+                    try { landscapeRecorder.stop(); } catch (_) {}
+                }
+                if (portraitRecorder && portraitRecorder.state !== 'inactive') {
+                    try { portraitRecorder.stop(); } catch (_) {}
+                }
                 statusMsg.textContent = '⏹️ Stopping...';
             }
 
@@ -1328,14 +966,12 @@
                 recTimer.textContent = `${m}:${s}`;
             }
 
-            // ─── Download helpers ─────────────────────────────────────
+            // ─── Download helpers ──────────────────────────────────────
             function downloadFilesSequentially(files) {
                 let delay = 0;
-                files.forEach((f, idx) => {
-                    setTimeout(() => {
-                        downloadBlob(f.blob, f.name);
-                    }, delay);
-                    delay += 600; // 600ms between downloads
+                files.forEach((f) => {
+                    setTimeout(() => downloadBlob(f.blob, f.name), delay);
+                    delay += 700;
                 });
             }
 
@@ -1347,14 +983,13 @@
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(url), 3000);
+                setTimeout(() => URL.revokeObjectURL(url), 4000);
             }
 
-            // ─── File management ──────────────────────────────────────
+            // ─── File management ───────────────────────────────────────
             function addFiles(files) {
                 files.forEach(f => {
-                    const exists = capturedFiles.some(c => c.name === f.name);
-                    if (!exists) capturedFiles.push(f);
+                    if (!capturedFiles.some(c => c.name === f.name)) capturedFiles.push(f);
                 });
                 renderDownloadLinks();
             }
@@ -1362,10 +997,7 @@
             function renderDownloadLinks() {
                 downloadLinks.innerHTML = '';
                 if (capturedFiles.length === 0) {
-                    const span = document.createElement('span');
-                    span.className = 'link-label';
-                    span.textContent = 'No files';
-                    downloadLinks.appendChild(span);
+                    downloadLinks.textContent = 'No files';
                     return;
                 }
                 capturedFiles.forEach((f, idx) => {
@@ -1380,8 +1012,8 @@
                     downloadLinks.appendChild(a);
                     if (idx < capturedFiles.length - 1) {
                         const sep = document.createElement('span');
-                        sep.className = 'link-label';
-                        sep.textContent = '·';
+                        sep.textContent = ' · ';
+                        sep.style.color = 'rgba(255,255,255,0.3)';
                         downloadLinks.appendChild(sep);
                     }
                 });
@@ -1402,10 +1034,10 @@
             function showError(title, sub) {
                 errorOverlay.style.display = 'flex';
                 errorText.textContent = title;
-                errorSub.textContent = sub || 'Please allow camera access and refresh.';
+                errorSub.textContent = sub;
             }
 
-            // ─── Settings UI interactions ─────────────────────────────
+            // ─── Settings UI ───────────────────────────────────────────
             zoomSlider.addEventListener('input', () => {
                 currentZoom = parseFloat(zoomSlider.value);
                 zoomLabel.textContent = currentZoom.toFixed(1) + 'x';
@@ -1422,16 +1054,10 @@
                 document.getElementById('landscapeInset').style.background = bgColorPicker.value;
             });
 
-            filterSelect.addEventListener('change', () => {
-                currentFilter = filterSelect.value;
-            });
+            filterSelect.addEventListener('change', () => { currentFilter = filterSelect.value; });
 
             noiseSlider.addEventListener('input', () => {
-                const val = parseInt(noiseSlider.value);
-                noiseLabel.textContent = val + '%';
-                // The audio script node listens to the same event
-                const ev = new Event('input');
-                noiseSlider.dispatchEvent(ev);
+                noiseLabel.textContent = noiseSlider.value + '%';
             });
 
             async function restartCamera() {
@@ -1441,88 +1067,57 @@
             resolutionSelect.addEventListener('change', restartCamera);
             cameraSelect.addEventListener('change', restartCamera);
 
-            settingsToggle.addEventListener('click', () => {
-                settingsPanel.classList.toggle('open');
-            });
-            closeSettings.addEventListener('click', () => {
-                settingsPanel.classList.remove('open');
-            });
+            settingsToggle.addEventListener('click', () => settingsPanel.classList.toggle('open'));
+            closeSettings.addEventListener('click', () => settingsPanel.classList.remove('open'));
 
             fullscreenBtn.addEventListener('click', () => {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {});
-                } else {
-                    document.exitFullscreen().catch(() => {});
-                }
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+                else document.exitFullscreen().catch(()=>{});
             });
 
             motionToggle.addEventListener('click', () => {
                 motionToggle.classList.toggle('active');
                 motionEnabled = motionToggle.classList.contains('active');
-                if (motionEnabled) {
-                    prevFrameData = null;
-                    motionTriggered = false;
-                }
+                if (motionEnabled) { prevFrameData = null; motionTriggered = false; }
             });
             motionSensitivity.addEventListener('input', () => {
                 motionSensitivityVal = parseInt(motionSensitivity.value);
                 motionLabel.textContent = motionSensitivityVal;
             });
-            motionAction.addEventListener('change', () => {
-                motionActionVal = motionAction.value;
-            });
+            motionAction.addEventListener('change', () => { motionActionVal = motionAction.value; });
 
             voiceToggle.addEventListener('click', () => {
                 voiceToggle.classList.toggle('active');
                 voiceEnabled = voiceToggle.classList.contains('active');
-                if (voiceEnabled) {
-                    initVoiceRecognition();
-                } else {
-                    if (recognition) {
-                        recognition.abort();
-                        recognition = null;
-                    }
-                }
+                if (voiceEnabled) initVoiceRecognition();
+                else if (recognition) { recognition.abort(); recognition = null; }
             });
 
             function initVoiceRecognition() {
-                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SR) {
                     statusMsg.textContent = '⚠️ Voice not supported';
                     voiceToggle.classList.remove('active');
                     voiceEnabled = false;
                     return;
                 }
-                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
                 recognition = new SR();
                 recognition.lang = 'en-US';
                 recognition.interimResults = false;
                 recognition.continuous = true;
                 recognition.onresult = (event) => {
-                    const last = event.results.length - 1;
-                    const transcript = event.results[last][0].transcript.toLowerCase().trim();
-                    console.log('Voice:', transcript);
-                    if (transcript.includes('record') && !isRecording && !countdownActive) {
-                        startRecordingWithCountdown();
-                    } else if (transcript.includes('stop') && isRecording) {
-                        stopRecording();
-                    } else if (transcript.includes('photo') && !isRecording) {
-                        capturePhoto();
-                    }
+                    const t = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+                    if (t.includes('record') && !isRecording && !countdownActive) startRecordingWithCountdown();
+                    else if (t.includes('stop') && isRecording) stopRecording();
+                    else if (t.includes('photo') && !isRecording) capturePhoto();
                 };
-                recognition.onerror = () => {
-                    if (voiceEnabled) {
-                        try { recognition.start(); } catch (_) {}
-                    }
-                };
+                recognition.onerror = () => { if (voiceEnabled) try { recognition.start(); } catch(_){} };
                 recognition.start();
             }
 
             recordBtn.addEventListener('click', () => {
-                if (isRecording) {
-                    pauseRecording();
-                } else {
-                    startRecordingWithCountdown();
-                }
+                if (isRecording) pauseRecording();
+                else startRecordingWithCountdown();
             });
 
             stopBtn.addEventListener('click', stopRecording);
@@ -1537,18 +1132,11 @@
             document.addEventListener('keydown', (e) => {
                 if (e.key === ' ' || e.key === 'Space') {
                     e.preventDefault();
-                    if (isRecording) {
-                        pauseRecording();
-                    } else if (!recordBtn.disabled) {
-                        startRecordingWithCountdown();
-                    }
+                    if (isRecording) pauseRecording();
+                    else if (!recordBtn.disabled) startRecordingWithCountdown();
                 }
-                if (e.key === 'p' || e.key === 'P') {
-                    if (!photoBtn.disabled) capturePhoto();
-                }
-                if (e.key === 'Escape') {
-                    if (settingsPanel.classList.contains('open')) settingsPanel.classList.remove('open');
-                }
+                if (e.key === 'p' || e.key === 'P') { if (!photoBtn.disabled) capturePhoto(); }
+                if (e.key === 'Escape') settingsPanel.classList.remove('open');
             });
 
             // ─── Init ──────────────────────────────────────────────────
@@ -1561,41 +1149,11 @@
                     showError('Canvas capture not supported', 'Please use a modern browser.');
                     return;
                 }
-                gridToggle.classList.remove('active');
-                gridOverlay.classList.remove('active');
-                gridOverlayLandscape.classList.remove('active');
-                motionToggle.classList.remove('active');
-                motionEnabled = false;
-                voiceToggle.classList.remove('active');
-                voiceEnabled = false;
-
                 statusMsg.textContent = 'Starting camera…';
                 await startCamera();
             }
 
-            // Patch onRecorderStop to clean UI when fully stopped
-            const origOnRecorderStop = onRecorderStop;
-            onRecorderStop = function(type) {
-                origOnRecorderStop(type);
-                if (!isRecording) {
-                    recordBtn.disabled = false;
-                    stopBtn.disabled = true;
-                    photoBtn.disabled = false;
-                    recBadge.classList.remove('active');
-                    recordBtn.classList.remove('recording');
-                    recordBtn.textContent = '●';
-                }
-            };
-
             init();
-
-            window.__app = {
-                startCamera,
-                capturePhoto,
-                startRecordingWithCountdown,
-                stopRecording,
-                pauseRecording,
-            };
 
         })();
     </script>
